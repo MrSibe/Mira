@@ -1,0 +1,9 @@
+node_modules
+dist
+src-tauri/target
+src-tauri/gen
+pnpm-lock.yaml
+*.sqlite3
+*.log
+.DS_Store
+CHANGELOG.md
