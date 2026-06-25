@@ -1,0 +1,54 @@
+import { ArrowUp } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { useAppStore } from "../store/useAppStore";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
+
+export function Composer() {
+  const [content, setContent] = useState("");
+  const isSending = useAppStore((state) => state.isSending);
+  const sendMessage = useAppStore((state) => state.sendMessage);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = content.trim();
+    if (!trimmed || isSending) {
+      return;
+    }
+    setContent("");
+    await sendMessage(trimmed);
+  }
+
+  return (
+    <form
+      className="shrink-0 bg-[var(--bg)] px-5 pb-5"
+      onSubmit={(event) => void onSubmit(event)}
+    >
+      <div className="mx-auto max-w-3xl">
+        <div className="flex min-h-14 items-end gap-2 rounded-2xl border border-[var(--border-strong)] bg-[var(--panel)] p-2 shadow-[var(--shadow-soft)]">
+          <Textarea
+            className="max-h-44 min-h-10 flex-1 border-0 bg-transparent px-2 py-2 shadow-none focus:border-0 focus:ring-0"
+            placeholder="询问任何问题"
+            value={content}
+            onChange={(event) => setContent(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void onSubmit(event);
+              }
+            }}
+          />
+          <Button
+            aria-label="发送"
+            title="发送"
+            size="icon"
+            className="mb-0.5 h-9 w-9 shrink-0 rounded-xl"
+            disabled={!content.trim() || isSending}
+          >
+            <ArrowUp className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}

@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# 二进制资源不要做行尾转换
+*.png binary
+*.ico binary
+*.icns binary
+*.sqlite3 binary
