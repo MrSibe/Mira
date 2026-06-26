@@ -222,7 +222,7 @@ export function ConversationList() {
                           onOpen={() => void openConversation(conversation.id)}
                           onArchive={(event) => {
                             stop(event);
-                            void archiveConversation(conversation.id);
+                            confirmArchiveConversation(conversation);
                           }}
                           onDelete={(event) => {
                             stop(event);
