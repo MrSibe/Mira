@@ -179,19 +179,16 @@ export function SettingsPage() {
     <>
       <main className="grid h-full min-w-0 grid-cols-[260px_minmax(0,1fr)] overflow-hidden bg-[var(--bg)] text-[var(--text)]">
         <aside className="flex min-h-0 flex-col border-r border-[var(--border)] bg-[var(--panel-soft)] px-3 py-4">
-          <button
-            className="mb-4 flex h-9 w-full items-center gap-2 rounded-lg px-2 text-sm text-[var(--muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
-            onClick={() => setPage("chat")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            返回聊天
-          </button>
-
-          <div className="mb-5 px-2">
+          <div className="mb-5 flex items-center justify-between px-2">
+            <button
+              aria-label="返回聊天"
+              title="返回聊天"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
+              onClick={() => setPage("chat")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
             <h1 className="text-base font-semibold">设置</h1>
-            <p className="mt-1 text-xs text-[var(--subtle)]">
-              模型、记忆和归档
-            </p>
           </div>
 
           <div className="space-y-1">
