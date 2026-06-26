@@ -82,7 +82,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
   themeMode: readStoredThemeMode(),
   isSidebarCollapsed: false,
-  setPage: (page) => set({ currentPage: page }),
+  setPage: (page) =>
+    set((state) => {
+      if (page === state.currentPage) {
+        return { currentPage: page };
+      }
+      if (
+        page === "settings" &&
+        isDraftConversationId(state.activeConversationId)
+      ) {
+        return {
+          currentPage: page,
+          conversations: state.conversations.filter(
+            (item) => item.id !== state.activeConversationId,
+          ),
+          activeConversationId: null,
+          messages: [],
+        };
+      }
+      return { currentPage: page };
+    }),
   setThemeMode: (themeMode) => {
     storeThemeMode(themeMode);
     applyThemeMode(themeMode);
@@ -151,14 +170,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   createConversation: async (projectId) => {
     const targetProjectId =
       projectId !== undefined ? projectId : get().activeProjectId;
-    const conversation = await tauriClient.createConversation(
-      undefined,
-      targetProjectId,
-    );
+    const draft = createDraftConversation(targetProjectId);
     set((state) => ({
-      conversations: [conversation, ...state.conversations],
-      activeConversationId: conversation.id,
-      activeProjectId: conversation.project_id,
+      conversations: [
+        draft,
+        ...state.conversations.filter(
+          (item) => !isDraftConversationId(item.id),
+        ),
+      ],
+      activeConversationId: draft.id,
+      activeProjectId: draft.project_id,
       messages: [],
     }));
   },
@@ -184,17 +205,54 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
   selectConversation: async (conversationId) => {
+    if (isDraftConversationId(conversationId)) {
+      const conversation = get().conversations.find(
+        (item) => item.id === conversationId,
+      );
+      set((state) => ({
+        activeConversationId: conversationId,
+        activeProjectId: conversation?.project_id ?? null,
+        messages: [],
+        conversations:
+          isDraftConversationId(state.activeConversationId) &&
+          state.activeConversationId !== conversationId
+            ? state.conversations.filter(
+                (item) => item.id !== state.activeConversationId,
+              )
+            : state.conversations,
+      }));
+      return;
+    }
     const messages = await tauriClient.getConversationMessages(conversationId);
     const conversation = get().conversations.find(
       (item) => item.id === conversationId,
     );
-    set({
+    set((state) => ({
       activeConversationId: conversationId,
-      activeProjectId: conversation?.project_id ?? null,
+      activeProjectId: conversation?.project_id ?? state.activeProjectId,
       messages,
-    });
+      conversations: isDraftConversationId(state.activeConversationId)
+        ? state.conversations.filter(
+            (item) => item.id !== state.activeConversationId,
+          )
+        : state.conversations,
+    }));
   },
   archiveConversation: async (conversationId) => {
+    if (isDraftConversationId(conversationId)) {
+      set((state) => ({
+        conversations: state.conversations.filter(
+          (item) => item.id !== conversationId,
+        ),
+        activeConversationId:
+          state.activeConversationId === conversationId
+            ? null
+            : state.activeConversationId,
+        messages:
+          state.activeConversationId === conversationId ? [] : state.messages,
+      }));
+      return;
+    }
     await tauriClient.archiveConversation(conversationId);
     set((state) => {
       const conversation = state.conversations.find(
@@ -230,6 +288,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
   deleteConversation: async (conversationId) => {
+    if (isDraftConversationId(conversationId)) {
+      set((state) => ({
+        conversations: state.conversations.filter(
+          (item) => item.id !== conversationId,
+        ),
+        activeConversationId:
+          state.activeConversationId === conversationId
+            ? null
+            : state.activeConversationId,
+        messages:
+          state.activeConversationId === conversationId ? [] : state.messages,
+      }));
+      return;
+    }
     await tauriClient.deleteConversation(conversationId);
     set((state) => {
       const conversations = state.conversations.filter(
@@ -250,6 +322,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   moveConversationToProject: async (conversationId, projectId) => {
+    if (isDraftConversationId(conversationId)) {
+      set((state) => ({
+        conversations: state.conversations.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, project_id: projectId }
+            : conversation,
+        ),
+        activeProjectId:
+          state.activeConversationId === conversationId
+            ? projectId
+            : state.activeProjectId,
+      }));
+      return;
+    }
     const updated = await tauriClient.moveConversationToProject(
       conversationId,
       projectId,
@@ -275,15 +361,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     let conversationProjectId = state.activeProjectId;
 
     try {
-      if (!conversationId) {
+      if (!conversationId || isDraftConversationId(conversationId)) {
+        const draft = get().conversations.find(
+          (item) => item.id === conversationId,
+        );
         const conversation = await tauriClient.createConversation(
           titleFromContent(trimmed),
-          state.activeProjectId,
+          draft?.project_id ?? state.activeProjectId,
         );
         conversationId = conversation.id;
         conversationProjectId = conversation.project_id;
         set((current) => ({
-          conversations: [conversation, ...current.conversations],
+          conversations: [
+            conversation,
+            ...current.conversations.filter(
+              (item) => !isDraftConversationId(item.id),
+            ),
+          ],
           activeConversationId: conversation.id,
           activeProjectId: conversation.project_id,
           messages: [],
@@ -468,4 +562,24 @@ export const useAppStore = create<AppState>((set, get) => ({
 function titleFromContent(content: string): string {
   const title = Array.from(content.trim()).slice(0, 24).join("");
   return title || "新对话";
+}
+
+const DRAFT_PREFIX = "draft-";
+
+function isDraftConversationId(
+  id: string | null | undefined,
+): id is `draft-${string}` {
+  return !!id && id.startsWith(DRAFT_PREFIX);
+}
+
+function createDraftConversation(projectId: string | null): Conversation {
+  const now = new Date().toISOString();
+  return {
+    id: `${DRAFT_PREFIX}${crypto.randomUUID()}`,
+    title: "新对话",
+    project_id: projectId,
+    is_archived: false,
+    created_at: now,
+    updated_at: now,
+  };
 }
