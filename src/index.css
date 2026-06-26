@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #ffffff;
+  --bg: #f7f7f8;
   --text: #171717;
   --muted: #6f6f6f;
   --subtle: #8a8a8a;
@@ -9,7 +9,7 @@
   --border-strong: #d9d9d9;
   --panel: #ffffff;
   --panel-soft: #fafafa;
-  --sidebar: #f7f7f8;
+  --sidebar: #ffffff;
   --hover: #f4f4f4;
   --active: #ececec;
   --message-user: #f4f4f4;
@@ -32,7 +32,7 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #212121;
+  --bg: #171717;
   --text: #f4f4f4;
   --muted: #c0c0c0;
   --subtle: #9b9b9b;
@@ -40,7 +40,7 @@
   --border-strong: #505050;
   --panel: #212121;
   --panel-soft: #2a2a2a;
-  --sidebar: #171717;
+  --sidebar: #212121;
   --hover: #2f2f2f;
   --active: #353535;
   --message-user: #2f2f2f;
