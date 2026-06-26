@@ -433,13 +433,15 @@ function ConversationRow({
   return (
     <article
       className={cn(
-        "group mb-0.5 rounded-md px-2 py-1 transition",
+        "group mb-0.5 cursor-pointer rounded-md px-2 py-1 transition",
         isActive
           ? "bg-[var(--active)] text-[var(--text)]"
           : "text-[var(--text)] hover:bg-[var(--hover)]",
       )}
+      onClick={onOpen}
       onContextMenu={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         const menuHeight = Math.min(320, 56 + (projects.length + 1) * 34);
         setProjectMenu({
           x: Math.max(8, Math.min(event.clientX, window.innerWidth - 248)),
@@ -451,15 +453,12 @@ function ConversationRow({
       }}
     >
       <div className="flex h-6 min-w-0 items-center gap-2">
-        <button
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={onOpen}
-        >
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
           <span className="min-w-0 truncate text-[13px] leading-5">
             {conversation.title}
           </span>
-        </button>
+        </div>
 
         <div className="relative h-6 w-[84px] shrink-0">
           <div className="absolute inset-0 flex items-center justify-end text-[13px] leading-5 text-[var(--subtle)] transition group-hover:pointer-events-none group-hover:opacity-0">
