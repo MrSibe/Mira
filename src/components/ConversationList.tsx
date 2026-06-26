@@ -180,7 +180,10 @@ export function ConversationList() {
                       <MoreHorizontal className="h-3.5 w-3.5" />
                     </button>
                     {openProjectMenuId === project.id ? (
-                      <div className="absolute right-2 top-8 z-10 w-36 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-1 shadow-[var(--shadow-soft)]">
+                      <div
+                        className="absolute right-2 top-8 z-10 w-36 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-1 shadow-[var(--shadow-soft)]"
+                        onMouseLeave={() => setOpenProjectMenuId(null)}
+                      >
                         <button
                           className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 text-[var(--text)] hover:bg-[var(--hover)]"
                           onClick={() => {
