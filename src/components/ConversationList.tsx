@@ -62,9 +62,9 @@ export function ConversationList() {
     [conversations],
   );
 
-  async function startConversation() {
+  async function startConversation(projectId?: string | null) {
     setPage("chat");
-    await createConversation();
+    await createConversation(projectId);
   }
 
   async function openConversation(conversationId: string) {
@@ -113,14 +113,6 @@ export function ConversationList() {
   return (
     <>
       <aside className="flex h-full min-h-0 flex-col border-r border-[var(--border)] bg-[var(--sidebar)] px-3 py-3">
-        <button
-          className="mb-3 flex h-8 w-full items-center gap-2 rounded-md px-3 text-left text-[13px] leading-5 text-[var(--text)] transition hover:bg-[var(--hover)]"
-          onClick={() => void startConversation()}
-        >
-          <MessageCirclePlus className="h-3.5 w-3.5" />
-          新对话
-        </button>
-
         <div className="mb-2 flex items-center justify-between px-2">
           <span className="text-[13px] font-medium leading-5 text-[var(--subtle)]">
             项目
@@ -182,8 +174,7 @@ export function ConversationList() {
                           className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 text-[var(--text)] hover:bg-[var(--hover)]"
                           onClick={() => {
                             setOpenProjectMenuId(null);
-                            setActiveProject(project.id);
-                            void startConversation();
+                            void startConversation(project.id);
                           }}
                         >
                           <MessageCirclePlus className="h-3.5 w-3.5" />
@@ -242,11 +233,21 @@ export function ConversationList() {
             })}
           </div>
 
-          {unprojectedConversations.length > 0 ? (
-            <section className="mt-4">
-              <div className="mb-2 px-2 text-[13px] font-medium leading-5 text-[var(--subtle)]">
+          <section className="mt-4">
+            <div className="mb-2 flex items-center justify-between px-2">
+              <span className="text-[13px] font-medium leading-5 text-[var(--subtle)]">
                 对话
-              </div>
+              </span>
+              <button
+                aria-label="新建对话"
+                title="新建对话"
+                className="rounded p-1 text-[var(--subtle)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
+                onClick={() => void startConversation(null)}
+              >
+                <MessageCirclePlus className="h-4 w-4" />
+              </button>
+            </div>
+            {unprojectedConversations.length > 0 ? (
               <div className="space-y-1">
                 {unprojectedConversations.map((conversation) => (
                   <ConversationRow
@@ -272,8 +273,8 @@ export function ConversationList() {
                   />
                 ))}
               </div>
-            </section>
-          ) : null}
+            ) : null}
+          </section>
         </div>
 
         <div className="mt-3">

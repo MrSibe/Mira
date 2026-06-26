@@ -44,7 +44,7 @@ export interface AppState {
   toggleSidebar: () => void;
   setActiveProject: (projectId: string | null) => void;
   bootstrap: () => Promise<void>;
-  createConversation: () => Promise<void>;
+  createConversation: (projectId?: string | null) => Promise<void>;
   createProject: (name: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   selectConversation: (conversationId: string) => Promise<void>;
@@ -148,14 +148,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     }
   },
-  createConversation: async () => {
+  createConversation: async (projectId) => {
     const conversation = await tauriClient.createConversation(
       undefined,
-      get().activeProjectId,
+      projectId ?? get().activeProjectId,
     );
     set((state) => ({
       conversations: [conversation, ...state.conversations],
       activeConversationId: conversation.id,
+      activeProjectId: conversation.project_id,
       messages: [],
     }));
   },
