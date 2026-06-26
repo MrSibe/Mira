@@ -20,7 +20,8 @@ import { Input } from "./ui/input";
 
 type DeleteTarget =
   | { kind: "conversation"; id: string; title: string }
-  | { kind: "project"; id: string; title: string };
+  | { kind: "project"; id: string; title: string }
+  | { kind: "archive"; id: string; title: string };
 
 export function ConversationList() {
   const conversations = useAppStore((state) => state.conversations);
@@ -95,6 +96,14 @@ export function ConversationList() {
     });
   }
 
+  function confirmArchiveConversation(conversation: Conversation) {
+    setDeleteTarget({
+      kind: "archive",
+      id: conversation.id,
+      title: conversation.title,
+    });
+  }
+
   function confirmDeleteProject(project: { id: string; name: string }) {
     setDeleteTarget({ kind: "project", id: project.id, title: project.name });
   }
@@ -105,6 +114,8 @@ export function ConversationList() {
     }
     if (deleteTarget.kind === "conversation") {
       void deleteConversation(deleteTarget.id);
+    } else if (deleteTarget.kind === "archive") {
+      void archiveConversation(deleteTarget.id);
     } else {
       void deleteProject(deleteTarget.id);
     }
@@ -261,7 +272,7 @@ export function ConversationList() {
                     onOpen={() => void openConversation(conversation.id)}
                     onArchive={(event) => {
                       stop(event);
-                      void archiveConversation(conversation.id);
+                      confirmArchiveConversation(conversation);
                     }}
                     onDelete={(event) => {
                       stop(event);
@@ -348,13 +359,22 @@ export function ConversationList() {
       </aside>
       <AlertDialog
         open={deleteTarget !== null}
-        title={deleteTarget?.kind === "project" ? "删除项目" : "删除对话"}
+        title={
+          deleteTarget?.kind === "project"
+            ? "删除项目"
+            : deleteTarget?.kind === "archive"
+              ? "归档对话"
+              : "删除对话"
+        }
         description={
           deleteTarget?.kind === "project"
             ? `将删除项目“${deleteTarget.title}”，项目内对话会移出项目。`
-            : `将永久删除对话“${deleteTarget?.title ?? ""}”，此操作不可撤销。`
+            : deleteTarget?.kind === "archive"
+              ? `将归档对话“${deleteTarget.title}”，归档后可在设置中恢复。`
+              : `将永久删除对话“${deleteTarget?.title ?? ""}”，此操作不可撤销。`
         }
-        confirmLabel="删除"
+        confirmLabel={deleteTarget?.kind === "archive" ? "归档" : "删除"}
+        confirmVariant={deleteTarget?.kind === "archive" ? "default" : "danger"}
         onConfirm={runDeleteTarget}
         onOpenChange={(open) => {
           if (!open) {

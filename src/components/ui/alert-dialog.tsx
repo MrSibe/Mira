@@ -7,6 +7,7 @@ interface AlertDialogProps {
   title: string;
   description?: ReactNode;
   confirmLabel?: string;
+  confirmVariant?: "default" | "danger";
   cancelLabel?: string;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
@@ -17,6 +18,7 @@ export function AlertDialog({
   title,
   description,
   confirmLabel = "确认",
+  confirmVariant = "danger",
   cancelLabel = "取消",
   onConfirm,
   onOpenChange,
@@ -73,7 +75,7 @@ export function AlertDialog({
           </Button>
           <Button
             type="button"
-            variant="danger"
+            variant={confirmVariant}
             onClick={() => {
               onConfirm();
               onOpenChange(false);
