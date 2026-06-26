@@ -7,6 +7,7 @@ import { cn } from "../utils/cn";
 export function WindowTitleBar() {
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
+  const currentPage = useAppStore((state) => state.currentPage);
   const appWindow = getCurrentWindow();
   const SidebarIcon = isSidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
 
@@ -19,14 +20,16 @@ export function WindowTitleBar() {
 
   return (
     <header className="flex h-9 shrink-0 items-center border-b border-[var(--border)] bg-[var(--bg)] text-[var(--text)] select-none">
-      <button
-        aria-label={isSidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
-        title={isSidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
-        className="ml-2 flex h-7 w-7 items-center justify-center rounded-md text-[var(--subtle)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
-        onClick={toggleSidebar}
-      >
-        <SidebarIcon className="h-4 w-4" />
-      </button>
+      {currentPage === "settings" ? null : (
+        <button
+          aria-label={isSidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
+          title={isSidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
+          className="ml-2 flex h-7 w-7 items-center justify-center rounded-md text-[var(--subtle)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
+          onClick={toggleSidebar}
+        >
+          <SidebarIcon className="h-4 w-4" />
+        </button>
+      )}
 
       <div
         data-tauri-drag-region
