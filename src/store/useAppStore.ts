@@ -149,9 +149,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   createConversation: async (projectId) => {
+    const targetProjectId =
+      projectId !== undefined ? projectId : get().activeProjectId;
     const conversation = await tauriClient.createConversation(
       undefined,
-      projectId ?? get().activeProjectId,
+      targetProjectId,
     );
     set((state) => ({
       conversations: [conversation, ...state.conversations],
