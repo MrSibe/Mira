@@ -293,16 +293,17 @@ export function ConversationList() {
 
         <div className="mt-3">
           <button
+            aria-label="设置"
+            title="设置"
             className={cn(
-              "flex h-8 w-full items-center gap-2 rounded-md px-3 text-[13px] leading-5 transition",
+              "flex h-8 w-8 items-center justify-center rounded-md transition",
               currentPage === "settings"
                 ? "bg-[var(--active)] text-[var(--text)]"
                 : "text-[var(--text)] hover:bg-[var(--hover)]",
             )}
             onClick={() => setPage("settings")}
           >
-            <Settings className="h-3.5 w-3.5" />
-            设置
+            <Settings className="h-4 w-4" />
           </button>
         </div>
 
