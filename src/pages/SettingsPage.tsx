@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { check } from "@tauri-apps/plugin-updater";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { AlertDialog } from "../components/ui/alert-dialog";
 import { Badge } from "../components/ui/badge";
@@ -116,10 +118,53 @@ export function SettingsPage() {
   const [archiveQuery, setArchiveQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [appVersion, setAppVersion] = useState("");
+  const [updateState, setUpdateState] = useState<
+    "idle" | "checking" | "available" | "downloading" | "done" | "error"
+  >("idle");
+  const [updateVersion, setUpdateVersion] = useState("");
+  const [updateError, setUpdateError] = useState("");
 
   useEffect(() => {
     void getVersion().then(setAppVersion);
   }, []);
+
+  async function checkForUpdates() {
+    setUpdateState("checking");
+    setUpdateError("");
+    try {
+      const update = await check();
+      if (update) {
+        setUpdateVersion(update.version);
+        setUpdateState("available");
+      } else {
+        setUpdateState("idle");
+      }
+    } catch (error) {
+      setUpdateError(String(error));
+      setUpdateState("error");
+    }
+  }
+
+  async function installUpdate() {
+    setUpdateState("downloading");
+    setUpdateError("");
+    try {
+      const update = await check();
+      if (!update) {
+        setUpdateState("idle");
+        return;
+      }
+      await update.downloadAndInstall();
+      setUpdateState("done");
+    } catch (error) {
+      setUpdateError(String(error));
+      setUpdateState("error");
+    }
+  }
+
+  function closeForRestart() {
+    void getCurrentWindow().close();
+  }
 
   useEffect(() => {
     if (!draftId && modelConfigs[0]) {
@@ -389,7 +434,16 @@ export function SettingsPage() {
                 confirmDeleteConversation,
               })
             : null}
-          {section === "about" ? renderAbout(t, appVersion) : null}
+          {section === "about"
+            ? renderAbout(t, appVersion, {
+                updateState,
+                updateVersion,
+                updateError,
+                checkForUpdates,
+                installUpdate,
+                closeForRestart,
+              })
+            : null}
         </section>
       </main>
       <AlertDialog
@@ -1227,7 +1281,40 @@ function renderArchive({
 
 const GITHUB_URL = "https://github.com/MrSibe/Mira";
 
-function renderAbout(t: ReturnType<typeof useT>, version: string) {
+function renderAbout(
+  t: ReturnType<typeof useT>,
+  version: string,
+  actions: {
+    updateState:
+      | "idle"
+      | "checking"
+      | "available"
+      | "downloading"
+      | "done"
+      | "error";
+    updateVersion: string;
+    updateError: string;
+    checkForUpdates: () => Promise<void>;
+    installUpdate: () => Promise<void>;
+    closeForRestart: () => void;
+  },
+) {
+  const {
+    updateState,
+    updateVersion,
+    updateError,
+    checkForUpdates,
+    installUpdate,
+    closeForRestart,
+  } = actions;
+  const [showDialog, setShowDialog] = useState(false);
+
+  useEffect(() => {
+    if (updateState === "available" || updateState === "done") {
+      setShowDialog(true);
+    }
+  }, [updateState]);
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
       <header className="mb-8">
@@ -1237,7 +1324,7 @@ function renderAbout(t: ReturnType<typeof useT>, version: string) {
         </p>
       </header>
 
-      <div className="max-w-md space-y-5">
+      <div className="max-w-md space-y-4">
         <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3">
           <span className="text-sm text-[var(--text)]">
             {t("settings.about.version")}
@@ -1265,7 +1352,68 @@ function renderAbout(t: ReturnType<typeof useT>, version: string) {
           </span>
           <ExternalLink className="h-4 w-4 text-[var(--subtle)]" />
         </button>
+
+        <Button
+          className="w-full"
+          disabled={updateState === "checking" || updateState === "downloading"}
+          onClick={() => void checkForUpdates()}
+        >
+          {updateState === "checking"
+            ? t("settings.about.checking")
+            : updateState === "available"
+              ? t("settings.about.updateAvailable", {
+                  version: updateVersion,
+                })
+              : t("settings.about.checkUpdates")}
+        </Button>
+
+        {updateState === "error" ? (
+          <div className="rounded-md border border-[var(--danger)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--danger)]">
+            {updateError}
+          </div>
+        ) : null}
       </div>
+
+      {showDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <div className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-soft)]">
+            <h2 className="text-sm font-semibold text-[var(--text)]">
+              {updateState === "available"
+                ? t("settings.about.dialogTitle")
+                : updateState === "downloading"
+                  ? t("settings.about.dialogDownloading")
+                  : t("settings.about.dialogDone")}
+            </h2>
+            <p className="mt-2 text-xs leading-5 text-[var(--subtle)]">
+              {updateState === "available"
+                ? t("settings.about.dialogDesc", { version: updateVersion })
+                : updateState === "downloading"
+                  ? t("settings.about.dialogDownloadingDesc")
+                  : t("settings.about.dialogDoneDesc")}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              {updateState === "available" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowDialog(false)}
+                  >
+                    {t("settings.about.dialogLater")}
+                  </Button>
+                  <Button type="button" onClick={() => void installUpdate()}>
+                    {t("settings.about.dialogUpdate")}
+                  </Button>
+                </>
+              ) : updateState === "done" ? (
+                <Button type="button" onClick={closeForRestart}>
+                  {t("settings.about.dialogRestart")}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
