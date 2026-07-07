@@ -6,6 +6,7 @@ mod memory;
 mod model;
 mod secrets;
 mod types;
+mod web_search;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -43,7 +44,10 @@ pub fn run() {
             chat::create_saved_memory,
             chat::update_memory,
             chat::delete_memory,
-            chat::run_memory_cleanup
+            chat::run_memory_cleanup,
+            chat::search_web,
+            chat::get_tavily_config,
+            chat::save_tavily_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

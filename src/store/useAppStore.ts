@@ -12,6 +12,7 @@ import type {
   Page,
   Project,
   SendMessageResult,
+  TavilyConfig,
   ThemeMode,
 } from "../core/types";
 import { tauriClient } from "../core/tauriClient";
@@ -41,10 +42,15 @@ export interface AppState {
   error: string | null;
   themeMode: ThemeMode;
   locale: Locale;
+  tavilyConfig: TavilyConfig | null;
+  isSearchEnabled: boolean;
   isSidebarCollapsed: boolean;
   setPage: (page: Page) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
   setLocale: (locale: Locale) => void;
+  setSearchEnabled: (enabled: boolean) => void;
+  loadTavilyConfig: () => Promise<void>;
+  saveTavilyConfig: (enabled: boolean, apiKey?: string | null) => Promise<void>;
   toggleSidebar: () => void;
   setActiveProject: (projectId: string | null) => void;
   bootstrap: () => Promise<void>;
@@ -60,7 +66,7 @@ export interface AppState {
     conversationId: string,
     projectId: string | null,
   ) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, withSearch?: boolean) => Promise<void>;
   setActiveModel: (modelConfigId: string) => void;
   saveModelSettings: (settings: ModelSettings) => Promise<void>;
   loadMemories: (query?: string) => Promise<void>;
@@ -88,6 +94,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
   themeMode: readStoredThemeMode(),
   locale: readStoredLocale(),
+  tavilyConfig: null,
+  isSearchEnabled: false,
   isSidebarCollapsed: false,
   setPage: (page) =>
     set((state) => {
@@ -118,6 +126,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     storeLocale(locale);
     setCurrentLocale(locale);
     set({ locale });
+  },
+  setSearchEnabled: (enabled) => set({ isSearchEnabled: enabled }),
+  loadTavilyConfig: async () => {
+    const config = await tauriClient.getTavilyConfig();
+    set({ tavilyConfig: config });
+  },
+  saveTavilyConfig: async (enabled, apiKey) => {
+    const config = await tauriClient.saveTavilyConfig(enabled, apiKey);
+    set({ tavilyConfig: config, isSearchEnabled: enabled });
   },
   toggleSidebar: () =>
     set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
@@ -153,6 +170,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           void get().loadMemories();
         });
       }
+      const [tavilyConfig] = await Promise.all([tauriClient.getTavilyConfig()]);
       set({
         conversations,
         archivedConversations,
@@ -166,6 +184,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeConversationId,
         activeModelConfigId,
         messages,
+        tavilyConfig,
+        isSearchEnabled: tavilyConfig.enabled,
         error: null,
       });
     } catch (error) {
@@ -382,11 +402,30 @@ export const useAppStore = create<AppState>((set, get) => ({
           : state.activeProjectId,
     }));
   },
-  sendMessage: async (content) => {
+  sendMessage: async (content, withSearch) => {
     const trimmed = content.trim();
     if (!trimmed) {
       return;
     }
+
+    let searchPrefix = "";
+    if (withSearch) {
+      try {
+        const results = await tauriClient.searchWeb(trimmed);
+        if (results.length > 0) {
+          const sources = results
+            .map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.content}`)
+            .join("\n\n---\n\n");
+          searchPrefix =
+            "I searched the web for information. Here are the results:\n\n" +
+            sources +
+            "\n\n---\n\nPlease answer based on these results and cite sources using [1], [2], etc.\n\n";
+        }
+      } catch {
+        // search failed silently, continue without search context
+      }
+    }
+    const textToSend = searchPrefix ? searchPrefix + trimmed : trimmed;
 
     let state = get();
     let conversationId = state.activeConversationId;
@@ -421,7 +460,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         id: `optimistic-${crypto.randomUUID()}`,
         conversation_id: conversationId,
         role: "user",
-        content: trimmed,
+        content: textToSend,
         created_at: new Date().toISOString(),
       };
       const optimisticAssistantMessage: ChatMessage = {
@@ -472,7 +511,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       try {
         result = await tauriClient.sendMessage(
           conversationId,
-          trimmed,
+          textToSend,
           state.activeModelConfigId,
           conversationProjectId,
           requestId,

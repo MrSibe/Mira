@@ -1,10 +1,12 @@
 use crate::database::{self, DbState};
 use crate::memory;
 use crate::model;
+use crate::secrets;
 use crate::types::{
     ChatMessage, Conversation, Memory, MemoryPatch, MessageStreamDelta, ModelConfig, ModelSettings,
-    Project, SendMessageResult,
+    Project, SearchResult, SendMessageResult, TavilyConfig,
 };
+use crate::web_search;
 use tauri::{AppHandle, Emitter, Manager, State, Window};
 
 #[tauri::command]
@@ -331,6 +333,45 @@ pub fn delete_model_config(
         .lock()
         .map_err(|_| "Database lock is poisoned".to_string())?;
     database::delete_model_config(&conn, &id)
+}
+
+#[tauri::command]
+pub async fn search_web(state: State<'_, DbState>, query: String) -> Result<Vec<SearchResult>, String> {
+    let api_key = {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Database lock is poisoned".to_string())?;
+        let config = database::get_tavily_config(&conn)?;
+        if !config.enabled {
+            return Err("Web search is not enabled. Enable it in Settings.".to_string());
+        }
+        secrets::load_tavily_api_key()?
+            .ok_or_else(|| "Tavily API key not configured.".to_string())?
+    };
+    web_search::search_web(&query, &api_key).await
+}
+
+#[tauri::command]
+pub fn get_tavily_config(state: State<'_, DbState>) -> Result<TavilyConfig, String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::get_tavily_config(&conn)
+}
+
+#[tauri::command]
+pub fn save_tavily_config(
+    state: State<'_, DbState>,
+    enabled: bool,
+    api_key: Option<String>,
+) -> Result<TavilyConfig, String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::save_tavily_config(&conn, enabled, api_key.as_deref())
 }
 
 #[tauri::command]

@@ -36,6 +36,7 @@ import type {
   Memory,
   ModelConfig,
   ModelSettings,
+  TavilyConfig,
   ThemeMode,
 } from "../core/types";
 import { useT } from "../i18n/useT";
@@ -48,7 +49,8 @@ type SettingsSection =
   | "models"
   | "memories"
   | "archive"
-  | "about";
+  | "about"
+  | "search";
 type DeleteTarget =
   | { kind: "memory"; id: number }
   | { kind: "conversation"; conversation: Conversation }
@@ -92,6 +94,10 @@ export function SettingsPage() {
   const setThemeMode = useAppStore((state) => state.setThemeMode);
   const locale = useAppStore((state) => state.locale);
   const setLocale = useAppStore((state) => state.setLocale);
+  const tavilyConfig = useAppStore((state) => state.tavilyConfig);
+  const isSearchEnabled = useAppStore((state) => state.isSearchEnabled);
+  const saveTavilyConfig = useAppStore((state) => state.saveTavilyConfig);
+  const loadTavilyConfig = useAppStore((state) => state.loadTavilyConfig);
   const memories = useAppStore((state) => state.memories);
   const loadMemories = useAppStore((state) => state.loadMemories);
   const createSavedMemory = useAppStore((state) => state.createSavedMemory);
@@ -123,6 +129,24 @@ export function SettingsPage() {
   >("idle");
   const [updateVersion, setUpdateVersion] = useState("");
   const [updateError, setUpdateError] = useState("");
+  const [searchApiKey, setSearchApiKey] = useState("");
+  const [searchProvider, setSearchProvider] = useState<"none" | "tavily">(
+    "none",
+  );
+
+  useEffect(() => {
+    if (tavilyConfig) {
+      setSearchProvider(
+        tavilyConfig.enabled && tavilyConfig.credential_status === "stored"
+          ? "tavily"
+          : "none",
+      );
+    }
+  }, [tavilyConfig]);
+
+  useEffect(() => {
+    void loadTavilyConfig();
+  }, [loadTavilyConfig]);
 
   useEffect(() => {
     void getVersion().then(setAppVersion);
@@ -164,6 +188,13 @@ export function SettingsPage() {
 
   function closeForRestart() {
     void getCurrentWindow().close();
+  }
+
+  async function handleSaveSearch() {
+    const enabled = searchProvider === "tavily";
+    const key = searchApiKey.trim() || null;
+    await saveTavilyConfig(enabled, key);
+    setSearchApiKey("");
   }
 
   useEffect(() => {
@@ -372,6 +403,12 @@ export function SettingsPage() {
               label={t("settings.navAbout")}
               onClick={() => setSection("about")}
             />
+            <SettingsNavButton
+              active={section === "search"}
+              icon={Search}
+              label={t("settings.navSearch")}
+              onClick={() => setSection("search")}
+            />
           </div>
         </aside>
 
@@ -448,6 +485,17 @@ export function SettingsPage() {
               }}
             />
           ) : null}
+          {section === "search"
+            ? renderSearch(t, {
+                tavilyConfig,
+                isSearchEnabled,
+                searchApiKey,
+                searchProvider,
+                setSearchApiKey,
+                setSearchProvider,
+                handleSaveSearch,
+              })
+            : null}
         </section>
       </main>
       <AlertDialog
@@ -584,6 +632,81 @@ function renderAppearance(
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function renderSearch(
+  t: ReturnType<typeof useT>,
+  props: {
+    tavilyConfig: TavilyConfig | null;
+    isSearchEnabled: boolean;
+    searchApiKey: string;
+    searchProvider: "none" | "tavily";
+    setSearchApiKey: (v: string) => void;
+    setSearchProvider: (v: "none" | "tavily") => void;
+    handleSaveSearch: () => Promise<void>;
+  },
+) {
+  const {
+    tavilyConfig,
+    searchApiKey,
+    searchProvider,
+    setSearchApiKey,
+    setSearchProvider,
+    handleSaveSearch,
+  } = props;
+  const keyStored = tavilyConfig?.credential_status === "stored";
+
+  return (
+    <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
+      <header className="mb-8">
+        <h2 className="text-2xl font-semibold">{t("settings.search.title")}</h2>
+        <p className="mt-2 text-sm text-[var(--subtle)]">
+          {t("settings.search.description")}
+        </p>
+      </header>
+
+      <div className="grid max-w-3xl gap-6">
+        <label className="block text-sm font-medium">
+          {t("settings.search.providerLabel")}
+          <select
+            className="mt-2 h-10 w-full rounded-md border border-[var(--border-strong)] bg-[var(--panel)] px-3 text-sm text-[var(--text)] outline-none transition"
+            value={searchProvider}
+            onChange={(e) =>
+              setSearchProvider(e.currentTarget.value as "none" | "tavily")
+            }
+          >
+            <option value="none">{t("settings.search.providerNone")}</option>
+            <option value="tavily">
+              {t("settings.search.providerTavily")}
+            </option>
+          </select>
+        </label>
+
+        {searchProvider === "tavily" ? (
+          <label className="block text-sm font-medium">
+            {t("settings.search.apiKey")}
+            <Input
+              className="mt-2"
+              type="password"
+              placeholder={t("settings.search.apiKeyPlaceholder")}
+              value={searchApiKey}
+              onChange={(e) => setSearchApiKey(e.currentTarget.value)}
+            />
+            <span className="mt-2 block text-xs text-[var(--subtle)]">
+              {keyStored
+                ? t("settings.search.credentialSaved")
+                : t("settings.search.credentialMissing")}
+            </span>
+          </label>
+        ) : null}
+
+        <Button className="w-fit" onClick={() => void handleSaveSearch()}>
+          <Save className="h-4 w-4" />
+          {t("common.save")}
+        </Button>
       </div>
     </div>
   );

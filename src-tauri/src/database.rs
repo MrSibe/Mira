@@ -748,6 +748,41 @@ fn set_app_setting(conn: &Connection, key: &str, value: Option<&str>) -> Result<
     Ok(())
 }
 
+pub fn get_tavily_config(conn: &Connection) -> Result<crate::types::TavilyConfig, String> {
+    let enabled = get_app_setting(conn, "tavily_enabled")?
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    let (credential_status, credential_error) = match secrets::load_tavily_api_key() {
+        Ok(Some(_)) => (Some("stored".to_string()), None),
+        Ok(None) => (Some("missing".to_string()), None),
+        Err(error) => (Some("error".to_string()), Some(error)),
+    };
+    Ok(crate::types::TavilyConfig {
+        enabled,
+        credential_status,
+        credential_error,
+    })
+}
+
+pub fn save_tavily_config(
+    conn: &Connection,
+    enabled: bool,
+    api_key: Option<&str>,
+) -> Result<crate::types::TavilyConfig, String> {
+    set_app_setting(conn, "tavily_enabled", Some(if enabled { "true" } else { "false" }))?;
+    if let Some(key) = api_key {
+        let trimmed = key.trim();
+        if trimmed == "******" {
+            // keep existing
+        } else if trimmed.is_empty() {
+            secrets::delete_tavily_api_key()?;
+        } else {
+            secrets::save_tavily_api_key(trimmed)?;
+        }
+    }
+    get_tavily_config(conn)
+}
+
 pub fn save_model_config(conn: &Connection, config: ModelConfig) -> Result<ModelConfig, String> {
     let timestamp = now();
     if config.is_default {

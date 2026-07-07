@@ -86,3 +86,16 @@ export interface MemoryPatch {
   tags?: string | null;
   is_archived?: boolean;
 }
+
+export interface SearchResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+}
+
+export interface TavilyConfig {
+  enabled: boolean;
+  credential_status: "stored" | "missing" | "error" | null;
+  credential_error?: string | null;
+}
