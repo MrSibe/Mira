@@ -36,9 +36,6 @@ pub fn init_database(app: &AppHandle) -> Result<Connection, String> {
     let conn = Connection::open(db_path)
         .map_err(|error| format!("Cannot open SQLite database: {error}"))?;
     migrate(&conn)?;
-    seed_model_configs(&conn)?;
-    refresh_provider_defaults(&conn)?;
-    move_legacy_api_keys_to_credential_store(&conn)?;
     Ok(conn)
 }
 
@@ -317,90 +314,6 @@ fn recreate_fts_schema(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-fn seed_model_configs(conn: &Connection) -> Result<(), String> {
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM model_configs", [], |row| row.get(0))
-        .map_err(|error| format!("Cannot count model configs: {error}"))?;
-    if count > 0 {
-        return Ok(());
-    }
-
-    let created_at = now();
-    let configs = [
-        (
-            "openai",
-            "openai",
-            "OpenAI",
-            "https://api.openai.com/v1",
-            "gpt-4.1-mini",
-            1,
-        ),
-        (
-            "deepseek",
-            "deepseek",
-            "DeepSeek",
-            "https://api.deepseek.com",
-            "deepseek-v4-pro",
-            0,
-        ),
-        (
-            "ollama",
-            "ollama",
-            "Ollama",
-            "http://localhost:11434/v1",
-            "llama3.1",
-            0,
-        ),
-    ];
-
-    for (id, provider, name, base_url, model, is_default) in configs {
-        conn.execute(
-            "INSERT INTO model_configs(id, provider, name, base_url, model, api_key, is_default, created_at, updated_at)
-             VALUES(?1, ?2, ?3, ?4, ?5, NULL, ?6, ?7, ?7)",
-            params![id, provider, name, base_url, model, is_default, created_at],
-        )
-        .map_err(|error| format!("Cannot seed model config {id}: {error}"))?;
-    }
-
-    Ok(())
-}
-
-fn move_legacy_api_keys_to_credential_store(conn: &Connection) -> Result<(), String> {
-    let mut statement = conn
-        .prepare(
-            "SELECT id, api_key
-             FROM model_configs
-             WHERE api_key IS NOT NULL AND TRIM(api_key) != ''",
-        )
-        .map_err(|error| format!("Cannot prepare legacy API key query: {error}"))?;
-    let rows = statement
-        .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })
-        .map_err(|error| format!("Cannot query legacy API keys: {error}"))?;
-    let keys = rows
-        .collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(|error| format!("Cannot collect legacy API keys: {error}"))?;
-    for (id, api_key) in keys {
-        secrets::save_model_api_key(&id, &api_key)?;
-    }
-    conn.execute("UPDATE model_configs SET api_key = NULL", [])
-        .map_err(|error| format!("Cannot clear legacy API keys: {error}"))?;
-    Ok(())
-}
-
-fn refresh_provider_defaults(conn: &Connection) -> Result<(), String> {
-    conn.execute(
-        "UPDATE model_configs
-         SET model = 'deepseek-v4-pro', updated_at = ?1
-         WHERE provider = 'deepseek'
-           AND model IN ('deepseek-chat', 'deepseek-reasoner')",
-        params![now()],
-    )
-    .map_err(|error| format!("Cannot refresh DeepSeek default model: {error}"))?;
-    Ok(())
-}
-
 pub fn list_conversations(conn: &Connection) -> Result<Vec<Conversation>, String> {
     let mut statement = conn
         .prepare(
@@ -541,14 +454,52 @@ pub fn create_project(conn: &Connection, name: String) -> Result<Project, String
 }
 
 pub fn delete_project(conn: &Connection, id: &str) -> Result<(), String> {
-    conn.execute(
-        "UPDATE conversations SET project_id = NULL, updated_at = ?1 WHERE project_id = ?2",
-        params![now(), id],
-    )
-    .map_err(|error| format!("Cannot remove conversations from project: {error}"))?;
+    let conversation_ids: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT id FROM conversations WHERE project_id = ?1")
+            .map_err(|error| format!("Cannot prepare project conversations: {error}"))?;
+        let rows = stmt
+            .query_map(params![id], |row| row.get::<_, String>(0))
+            .map_err(|error| format!("Cannot query project conversations: {error}"))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|error| format!("Cannot collect project conversations: {error}"))?
+    };
+    for cid in &conversation_ids {
+        conn.execute(
+            "DELETE FROM messages WHERE conversation_id = ?1",
+            params![cid],
+        )
+        .map_err(|error| format!("Cannot delete messages: {error}"))?;
+        conn.execute(
+            "DELETE FROM conversations WHERE id = ?1",
+            params![cid],
+        )
+        .map_err(|error| format!("Cannot delete conversation: {error}"))?;
+    }
     conn.execute("DELETE FROM projects WHERE id = ?1", params![id])
         .map_err(|error| format!("Cannot delete project: {error}"))?;
     Ok(())
+}
+
+pub fn rename_project(conn: &Connection, id: &str, name: &str) -> Result<Project, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Project name cannot be empty".to_string());
+    }
+    let timestamp = now();
+    conn.execute(
+        "UPDATE projects SET name = ?1, updated_at = ?2 WHERE id = ?3",
+        params![trimmed, timestamp, id],
+    )
+    .map_err(|error| format!("Cannot rename project: {error}"))?;
+    let project = conn
+        .query_row(
+            "SELECT id, name, created_at, updated_at, is_archived FROM projects WHERE id = ?1",
+            params![id],
+            project_from_row,
+        )
+        .map_err(|error| format!("Cannot fetch renamed project: {error}"))?;
+    Ok(project)
 }
 
 pub fn project_context_messages(
@@ -688,7 +639,6 @@ pub fn list_model_configs(
         .prepare(
             "SELECT id, provider, name, base_url, model, api_key, is_default, created_at, updated_at
              FROM model_configs
-             WHERE provider != 'mock' AND base_url != 'mock://local'
              ORDER BY is_default DESC, name ASC",
         )
         .map_err(|error| format!("Cannot prepare model config query: {error}"))?;
@@ -706,11 +656,10 @@ pub fn get_model_config(
     let sql = if id.is_some() {
         "SELECT id, provider, name, base_url, model, api_key, is_default, created_at, updated_at
          FROM model_configs
-         WHERE id = ?1 AND provider != 'mock' AND base_url != 'mock://local'"
+         WHERE id = ?1"
     } else {
         "SELECT id, provider, name, base_url, model, api_key, is_default, created_at, updated_at
          FROM model_configs
-         WHERE provider != 'mock' AND base_url != 'mock://local'
          ORDER BY is_default DESC, name ASC LIMIT 1"
     };
     let config = if let Some(id) = id {
@@ -843,6 +792,20 @@ pub fn save_model_config(conn: &Connection, config: ModelConfig) -> Result<Model
     )
     .map_err(|error| format!("Cannot save model config: {error}"))?;
     get_model_config(conn, Some(&config.id), false)
+}
+
+pub fn delete_model_config(conn: &Connection, id: &str) -> Result<(), String> {
+    let settings = get_model_settings(conn)?;
+    let is_active =
+        settings.chat_model_config_id.as_deref() == Some(id)
+            || settings.background_model_config_id.as_deref() == Some(id);
+    if is_active {
+        return Err("Cannot delete the active chat or background model".to_string());
+    }
+    conn.execute("DELETE FROM model_configs WHERE id = ?1", params![id])
+        .map_err(|error| format!("Cannot delete model config: {error}"))?;
+    secrets::delete_model_api_key(id)?;
+    Ok(())
 }
 
 pub fn list_memories(

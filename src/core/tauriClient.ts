@@ -36,6 +36,8 @@ export const tauriClient = {
   createProject: (name: string) => invoke<Project>("create_project", { name }),
   deleteProject: (projectId: string) =>
     invoke<void>("delete_project", { projectId }),
+  renameProject: (projectId: string, name: string) =>
+    invoke<Project>("rename_project", { projectId, name }),
   sendMessage: (
     conversationId: string | null,
     content: string,
@@ -53,6 +55,8 @@ export const tauriClient = {
   listModelConfigs: () => invoke<ModelConfig[]>("list_model_configs"),
   saveModelConfig: (config: ModelConfig) =>
     invoke<ModelConfig>("save_model_config", { config }),
+  deleteModelConfig: (id: string) =>
+    invoke<void>("delete_model_config", { id }),
   getModelSettings: () => invoke<ModelSettings>("get_model_settings"),
   saveModelSettings: (settings: ModelSettings) =>
     invoke<ModelSettings>("save_model_settings", { settings }),

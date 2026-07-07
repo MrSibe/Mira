@@ -119,6 +119,19 @@ pub fn delete_project(state: State<'_, DbState>, project_id: String) -> Result<(
 }
 
 #[tauri::command]
+pub fn rename_project(
+    state: State<'_, DbState>,
+    project_id: String,
+    name: String,
+) -> Result<Project, String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::rename_project(&conn, &project_id, &name)
+}
+
+#[tauri::command]
 pub fn get_conversation_messages(
     state: State<'_, DbState>,
     conversation_id: String,
@@ -306,6 +319,18 @@ pub fn save_model_config(
         .lock()
         .map_err(|_| "Database lock is poisoned".to_string())?;
     database::save_model_config(&conn, config)
+}
+
+#[tauri::command]
+pub fn delete_model_config(
+    state: State<'_, DbState>,
+    id: String,
+) -> Result<(), String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::delete_model_config(&conn, &id)
 }
 
 #[tauri::command]
