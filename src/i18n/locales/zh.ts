@@ -22,6 +22,8 @@ export const zh: typeof en = {
   chat: {
     emptyHeading: "今天想聊什么？",
     thinking: "Mira 正在思考",
+    searching: "正在搜索...",
+    searchResults: "搜索到 {{n}} 个网页",
   },
   composer: {
     placeholder: "询问任何问题",

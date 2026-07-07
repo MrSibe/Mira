@@ -20,6 +20,8 @@ export const en = {
   chat: {
     emptyHeading: "What would you like to talk about today?",
     thinking: "Mira is thinking",
+    searching: "Searching the web...",
+    searchResults: "Found {{n}} results",
   },
   composer: {
     placeholder: "Ask anything",

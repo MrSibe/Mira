@@ -11,7 +11,6 @@ import type {
   ModelSettings,
   Page,
   Project,
-  SendMessageResult,
   TavilyConfig,
   ThemeMode,
 } from "../core/types";
@@ -25,6 +24,95 @@ import {
 } from "../utils/theme";
 
 let memoriesChangedUnlisten: Awaited<ReturnType<typeof listen>> | null = null;
+
+async function sendToLlm(
+  set: (
+    partial: Partial<AppState> | ((state: AppState) => Partial<AppState>),
+  ) => void,
+  get: () => AppState,
+  conversationId: string,
+  content: string,
+  conversationProjectId: string | null,
+  userMessageId: string,
+) {
+  const requestId = crypto.randomUUID();
+  const optimisticAssistantMessage: ChatMessage = {
+    id: `streaming-${requestId}`,
+    conversation_id: conversationId,
+    role: "assistant",
+    content: "",
+    created_at: new Date().toISOString(),
+  };
+
+  set((current) => ({
+    isSending: true,
+    messages:
+      current.activeConversationId === conversationId
+        ? [...current.messages, optimisticAssistantMessage]
+        : current.messages,
+  }));
+
+  const unlisten = await listen<MessageStreamDelta>(
+    "message_stream_delta",
+    (event) => {
+      const delta = event.payload;
+      set((current) => {
+        if (
+          delta.request_id !== requestId ||
+          current.activeConversationId !== delta.conversation_id
+        ) {
+          return current;
+        }
+        return {
+          messages: current.messages.map((message) =>
+            message.id === optimisticAssistantMessage.id
+              ? { ...message, content: message.content + delta.content }
+              : message,
+          ),
+        };
+      });
+    },
+  );
+
+  try {
+    const result = await tauriClient.sendMessage(
+      conversationId,
+      content,
+      get().activeModelConfigId,
+      conversationProjectId,
+      requestId,
+    );
+    set((current) => ({
+      activeConversationId: result.conversation.id,
+      activeProjectId:
+        current.activeConversationId === result.conversation.id
+          ? result.conversation.project_id
+          : current.activeProjectId,
+      conversations: [
+        result.conversation,
+        ...current.conversations.filter(
+          (item) => item.id !== result.conversation.id,
+        ),
+      ],
+      messages:
+        current.activeConversationId === result.conversation.id
+          ? [
+              ...current.messages.map((message) =>
+                message.id === userMessageId
+                  ? result.user_message
+                  : message.id === optimisticAssistantMessage.id
+                    ? result.assistant_message
+                    : message,
+              ),
+            ]
+          : current.messages,
+      isSending: false,
+    }));
+    await get().loadMemories();
+  } finally {
+    unlisten();
+  }
+}
 
 export interface AppState {
   currentPage: Page;
@@ -408,25 +496,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    let searchPrefix = "";
-    if (withSearch) {
-      try {
-        const results = await tauriClient.searchWeb(trimmed);
-        if (results.length > 0) {
-          const sources = results
-            .map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.content}`)
-            .join("\n\n---\n\n");
-          searchPrefix =
-            "I searched the web for information. Here are the results:\n\n" +
-            sources +
-            "\n\n---\n\nPlease answer based on these results and cite sources using [1], [2], etc.\n\n";
-        }
-      } catch {
-        // search failed silently, continue without search context
-      }
-    }
-    const textToSend = searchPrefix ? searchPrefix + trimmed : trimmed;
-
     let state = get();
     let conversationId = state.activeConversationId;
     let conversationProjectId = state.activeProjectId;
@@ -455,98 +524,91 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
       }
 
-      const requestId = crypto.randomUUID();
       const optimisticUserMessage: ChatMessage = {
         id: `optimistic-${crypto.randomUUID()}`,
         conversation_id: conversationId,
         role: "user",
-        content: textToSend,
-        created_at: new Date().toISOString(),
-      };
-      const optimisticAssistantMessage: ChatMessage = {
-        id: `streaming-${requestId}`,
-        conversation_id: conversationId,
-        role: "assistant",
-        content: "",
+        content: trimmed,
         created_at: new Date().toISOString(),
       };
 
-      set((current) => ({
-        isSending: true,
-        error: null,
-        messages:
-          current.activeConversationId === conversationId
-            ? [
-                ...current.messages,
-                optimisticUserMessage,
-                optimisticAssistantMessage,
-              ]
-            : current.messages,
-      }));
+      // Search flow: show searching → results → then send to LLM
+      if (withSearch) {
+        const searchId = `search-${crypto.randomUUID()}`;
+        const searchingMessage: ChatMessage = {
+          id: searchId,
+          conversation_id: conversationId,
+          role: "assistant",
+          content: t("chat.searching"),
+          created_at: new Date().toISOString(),
+        };
 
-      state = get();
-      const unlisten = await listen<MessageStreamDelta>(
-        "message_stream_delta",
-        (event) => {
-          const delta = event.payload;
-          set((current) => {
-            if (
-              delta.request_id !== requestId ||
-              current.activeConversationId !== delta.conversation_id
-            ) {
-              return current;
-            }
-            return {
-              messages: current.messages.map((message) =>
-                message.id === optimisticAssistantMessage.id
-                  ? { ...message, content: message.content + delta.content }
-                  : message,
+        set((current) => ({
+          isSending: true,
+          error: null,
+          messages:
+            current.activeConversationId === conversationId
+              ? [...current.messages, optimisticUserMessage, searchingMessage]
+              : current.messages,
+        }));
+
+        let searchPrefix = "";
+        try {
+          const results = await tauriClient.searchWeb(trimmed);
+          if (results.length > 0) {
+            const formatted = results
+              .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n${r.content}`)
+              .join("\n\n");
+            searchPrefix =
+              "Here are web search results:\n\n" + formatted + "\n\n---\n";
+
+            set((current) => ({
+              messages: current.messages.map((msg) =>
+                msg.id === searchId
+                  ? {
+                      ...msg,
+                      content: "",
+                      search_results: results,
+                    }
+                  : msg,
               ),
-            };
-          });
-        },
-      );
+            }));
+          } else {
+            set((current) => ({
+              messages: current.messages.filter((msg) => msg.id !== searchId),
+            }));
+          }
+        } catch {
+          set((current) => ({
+            messages: current.messages.filter((msg) => msg.id !== searchId),
+          }));
+        }
 
-      let result: SendMessageResult;
-      try {
-        result = await tauriClient.sendMessage(
+        // Send to LLM with search context
+        const textToSend = searchPrefix
+          ? searchPrefix + "\nUser question: " + trimmed
+          : trimmed;
+
+        await sendToLlm(
+          set,
+          get,
           conversationId,
           textToSend,
-          state.activeModelConfigId,
           conversationProjectId,
-          requestId,
+          optimisticUserMessage.id,
         );
-      } finally {
-        unlisten();
+        return;
       }
 
-      set((current) => ({
-        activeConversationId: result.conversation.id,
-        activeProjectId:
-          current.activeConversationId === result.conversation.id
-            ? result.conversation.project_id
-            : current.activeProjectId,
-        conversations: [
-          result.conversation,
-          ...current.conversations.filter(
-            (item) => item.id !== result.conversation.id,
-          ),
-        ],
-        messages:
-          current.activeConversationId === result.conversation.id
-            ? [
-                ...current.messages.map((message) =>
-                  message.id === optimisticUserMessage.id
-                    ? result.user_message
-                    : message.id === optimisticAssistantMessage.id
-                      ? result.assistant_message
-                      : message,
-                ),
-              ]
-            : current.messages,
-        isSending: false,
-      }));
-      await get().loadMemories();
+      // Normal flow: no search
+      await sendToLlm(
+        set,
+        get,
+        conversationId,
+        trimmed,
+        conversationProjectId,
+        optimisticUserMessage.id,
+      );
     } catch (error) {
       set({
         isSending: false,

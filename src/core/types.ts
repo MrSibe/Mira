@@ -29,6 +29,7 @@ export interface ChatMessage {
   role: Role;
   content: string;
   created_at: string;
+  search_results?: SearchResult[];
 }
 
 export interface ModelConfig {
