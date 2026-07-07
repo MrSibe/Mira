@@ -5,3 +5,12 @@ src-tauri/gen
 *.sqlite3
 *.log
 .DS_Store
+
+# IDE / editor
+.idea/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
