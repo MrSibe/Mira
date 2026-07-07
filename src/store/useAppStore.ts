@@ -144,7 +144,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? await tauriClient.getConversationMessages(activeConversationId)
         : [];
       const activeModelConfigId =
-        modelSettings.chat_model_config_id ??
+        modelSettings?.chat_model_config_id ??
         modelConfigs.find((config) => config.is_default)?.id ??
         modelConfigs[0]?.id ??
         null;

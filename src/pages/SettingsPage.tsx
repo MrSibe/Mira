@@ -434,16 +434,20 @@ export function SettingsPage() {
                 confirmDeleteConversation,
               })
             : null}
-          {section === "about"
-            ? renderAbout(t, appVersion, {
+          {section === "about" ? (
+            <AboutSection
+              t={t}
+              version={appVersion}
+              actions={{
                 updateState,
                 updateVersion,
                 updateError,
                 checkForUpdates,
                 installUpdate,
                 closeForRestart,
-              })
-            : null}
+              }}
+            />
+          ) : null}
         </section>
       </main>
       <AlertDialog
@@ -1281,9 +1285,13 @@ function renderArchive({
 
 const GITHUB_URL = "https://github.com/MrSibe/Mira";
 
-function renderAbout(
-  t: ReturnType<typeof useT>,
-  version: string,
+function AboutSection({
+  t,
+  version,
+  actions,
+}: {
+  t: ReturnType<typeof useT>;
+  version: string;
   actions: {
     updateState:
       | "idle"
@@ -1297,8 +1305,8 @@ function renderAbout(
     checkForUpdates: () => Promise<void>;
     installUpdate: () => Promise<void>;
     closeForRestart: () => void;
-  },
-) {
+  };
+}) {
   const {
     updateState,
     updateVersion,

@@ -2,17 +2,11 @@ import type { en } from "./en";
 
 export const zh: typeof en = {
   common: {
-    newConversation: "新对话",
     cancel: "取消",
     confirm: "确认",
     create: "创建",
     close: "关闭",
     closeDialog: "关闭确认框",
-    delete: "删除",
-    archive: "归档",
-    settings: "设置",
-    save: "保存",
-    refresh: "刷新",
   },
   window: {
     expandSidebar: "展开侧栏",
@@ -120,8 +114,6 @@ export const zh: typeof en = {
       deleteDialogTitle: "删除供应商",
       deleteDialogDesc: '将永久删除供应商"{{name}}"，此操作不可撤销。',
       deleteDialogConfirm: "删除",
-      deleteActiveError:
-        "无法删除当前正在使用的对话或后台模型，请先切换到其他模型。",
       customDefaultName: "自定义 Provider",
       credentialStored: "API Key 已保存到系统凭据库。",
       credentialError: "系统凭据读取失败：{{error}}",
@@ -173,7 +165,6 @@ export const zh: typeof en = {
       website: "官方网站",
       checkUpdates: "检查更新",
       checking: "检查中...",
-      upToDate: "Mira 已是最新版本。",
       updateAvailable: "发现 {{version}} 更新",
       dialogTitle: "发现新版本",
       dialogDesc: "版本 {{version}} 已准备好安装。",

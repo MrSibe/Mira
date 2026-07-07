@@ -1,10 +1,7 @@
-import { useMemo } from "react";
 import { useAppStore } from "../store/useAppStore";
-import { t, type TranslationKey } from "./index";
+import { t } from "./index";
 
 export function useT(): typeof t {
   useAppStore((state) => state.locale);
-  return useMemo(() => t, []);
+  return t;
 }
-
-export type { TranslationKey };

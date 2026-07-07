@@ -929,12 +929,13 @@ pub fn find_similar_memory(conn: &Connection, fact: &str) -> Result<Option<Memor
     if needle.chars().count() < 6 {
         return Ok(None);
     }
-    let like = format!("%{}%", needle);
+    let escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    let like = format!("%{}%", escaped);
     conn.query_row(
         "SELECT id, fact, memory_type, importance, confidence, tags, source_conversation_id,
                 created_at, updated_at, last_used_at, use_count, is_archived
          FROM memories
-         WHERE is_archived = 0 AND REPLACE(fact, ' ', '') LIKE ?1
+         WHERE is_archived = 0 AND REPLACE(fact, ' ', '') LIKE ?1 ESCAPE '\\'
          ORDER BY importance DESC, updated_at DESC
          LIMIT 1",
         params![like],

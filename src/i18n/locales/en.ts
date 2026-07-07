@@ -1,16 +1,10 @@
 export const en = {
   common: {
-    newConversation: "New conversation",
     cancel: "Cancel",
     confirm: "Confirm",
     create: "Create",
     close: "Close",
     closeDialog: "Close dialog",
-    delete: "Delete",
-    archive: "Archive",
-    settings: "Settings",
-    save: "Save",
-    refresh: "Refresh",
   },
   window: {
     expandSidebar: "Expand sidebar",
@@ -124,8 +118,6 @@ export const en = {
       deleteDialogDesc:
         'Will permanently delete provider "{{name}}". This action cannot be undone.',
       deleteDialogConfirm: "Delete",
-      deleteActiveError:
-        "Cannot delete the active chat or background model. Switch to another model first.",
       customDefaultName: "Custom Provider",
       credentialStored: "API Key is saved in the system credential vault.",
       credentialError: "Failed to read system credential: {{error}}",
@@ -179,7 +171,6 @@ export const en = {
       website: "Website",
       checkUpdates: "Check for updates",
       checking: "Checking...",
-      upToDate: "Mira is up to date.",
       updateAvailable: "Update to {{version}} available",
       dialogTitle: "Update available",
       dialogDesc: "Version {{version}} is ready to install.",
