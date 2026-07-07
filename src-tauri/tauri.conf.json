@@ -42,7 +42,7 @@
       "endpoints": [
         "https://raw.githubusercontent.com/MrSibe/Mira/main/updater/latest.json"
       ],
-      "pubkey": "YOUR_PUBLIC_KEY_HERE"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhFNUE2QUVEMkZCQzU2NDUKUldSRlZyd3Y3V3BhamdpT01ORWxscjNZYnV6SVc3VHRrM1VEUEpQWUN4THR0Z1NUSHVvVk1GaVgK"
     }
   }
 }
