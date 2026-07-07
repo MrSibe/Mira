@@ -1,34 +1,71 @@
+<div align="center">
+
 # Mira
 
-Personal AI Memory Client，一个具有长期记忆能力的 ChatGPT 风格本地桌面客户端。
+**A simple enough, memory-aware open-source LLM chat client**
 
-## 当前脚手架
+ChatGPT-inspired · Local-first · Lightweight · Easy to modify
 
-- Tauri 2 + React + TypeScript
-- TailwindCSS + shadcn/ui 风格本地组件
-- Zustand 状态管理
-- SQLite 本地存储
-- Rust/Tauri 后端 OpenAI-compatible HTTP 模型网关
-- 轻量自建 i18n（中/英，默认英文）
+[Features](#features) · [Why Mira](#why-mira) · [Quick Start](#quick-start) · [Tech Stack](#tech-stack) · [Fork It](#fork-it)
 
-## 开发命令
+**[简体中文](README.zh-CN.md)** · English
+
+</div>
+
+---
+
+## Why Mira
+
+I needed a **simple enough** open-source LLM chat app with memory.
+
+Existing solutions are either too heavy, lock the model and memory into a cloud service, or have codebases too complex to modify. So I built Mira, inspired by ChatGPT's design — **lightweight, supports custom models, and easy to modify yourself**.
+
+If you also want a chat app that remembers what you said and belongs to you, fork it and make it your own.
+
+## Features
+
+- **Chat** — ChatGPT-style conversation UI with Markdown rendering and code highlighting
+- **Long-term memory** — Automatically extracts memories from conversations and injects relevant context across chats; manual saved memories supported too
+- **Multi-provider** — Any OpenAI-compatible endpoint (OpenAI, DeepSeek, Ollama, self-hosted gateways…). API keys stored in the OS credential vault
+- **Projects** — Group conversations into projects; conversations in a project share context
+- **Local storage** — All data stays in a local SQLite file. Nothing leaves your machine
+- **i18n** — English / Chinese UI, English by default
+
+## Quick Start
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 22+
+- [pnpm](https://pnpm.io/) 11+
+- [Rust](https://www.rust-lang.org/) stable (with `cargo`)
+
+### Run
 
 ```bash
 pnpm install
-pnpm build
 pnpm tauri dev
 ```
 
-`pnpm tauri dev` 需要本机 PATH 中有 Rust toolchain 和 `cargo`。
+### Build
 
-## 文档
+```bash
+pnpm tauri build
+```
 
-- [架构说明](docs/architecture.md)
-- [记忆系统](docs/memory-system.md)
-- [项目上下文](docs/project-context.md)
-- [安全说明](docs/security.md)
+Output lands in `src-tauri/target/release/bundle/`.
 
-## 架构
+## Tech Stack
+
+| Layer       | Tech                                          |
+| ----------- | --------------------------------------------- |
+| Frontend    | React 19 · TypeScript · TailwindCSS · Zustand |
+| Desktop     | Tauri 2                                       |
+| Backend     | Rust · OpenAI-compatible HTTP model gateway   |
+| Storage     | SQLite (local file)                           |
+| Credentials | OS keyring                                    |
+| i18n        | Lightweight built-in (en / zh)                |
+
+## Architecture
 
 ```txt
 React UI
@@ -44,26 +81,50 @@ Memory Observer / Injection / Cleaner
 SQLite
 ```
 
-## 目录
+## Project Structure
 
 ```txt
 src
-├── components
-├── pages
-├── store
-├── core
-├── i18n
-└── utils
+├── components      # UI components
+├── pages           # Chat page / Settings page
+├── store           # Zustand state management
+├── core            # Tauri client & types
+├── i18n            # Internationalization (en / zh)
+└── utils           # Utilities
 
 src-tauri/src
-├── chat.rs
-├── database.rs
-├── memory.rs
-├── model.rs
-├── secrets.rs
-└── types.rs
+├── chat.rs         # Tauri command handlers
+├── database.rs     # SQLite data layer
+├── memory.rs       # Memory extraction & injection
+├── model.rs        # OpenAI-compatible model gateway
+├── secrets.rs      # OS credential store access
+└── types.rs        # Shared types
 ```
 
-## MVP 边界
+## Docs
 
-v1 只做本机单用户、纯聊天、长期记忆、SQLite 本地文件存储、多 OpenAI-compatible Provider 配置。不做 RAG、向量数据库、工具调用、多用户、云同步。
+- [Architecture](docs/architecture.md)
+- [Memory System](docs/memory-system.md)
+- [Project Context](docs/project-context.md)
+- [Security](docs/security.md)
+
+## Scope
+
+v1 focuses on local single-user, plain chat, long-term memory, local SQLite storage, and multi-provider config.
+
+**Not doing:** RAG, vector databases, tool calling, multi-user, cloud sync.
+
+## Fork It
+
+Mira's code is deliberately simple and readable. If you want your own LLM chat app, fork it and:
+
+- Restyle the UI to your taste
+- Wire up your own models or gateways
+- Tweak the memory strategy
+- Add whatever you need
+
+PRs are welcome, but please open an issue first to discuss the direction.
+
+## License
+
+[GPL-3.0](LICENSE)
