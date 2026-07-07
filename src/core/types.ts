@@ -4,6 +4,8 @@ export type Role = "system" | "user" | "assistant";
 
 export type ThemeMode = "light" | "dark" | "system";
 
+export type Locale = "en" | "zh";
+
 export interface Project {
   id: string;
   name: string;
