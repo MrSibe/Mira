@@ -11,6 +11,7 @@ import type {
   ModelSettings,
   Page,
   Project,
+  SearchResult,
   TavilyConfig,
   ThemeMode,
 } from "../core/types";
@@ -132,6 +133,7 @@ export interface AppState {
   locale: Locale;
   tavilyConfig: TavilyConfig | null;
   isSearchEnabled: boolean;
+  activeSearchResults: SearchResult[];
   isSidebarCollapsed: boolean;
   setPage: (page: Page) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
@@ -139,6 +141,7 @@ export interface AppState {
   setSearchEnabled: (enabled: boolean) => void;
   loadTavilyConfig: () => Promise<void>;
   saveTavilyConfig: (enabled: boolean, apiKey?: string | null) => Promise<void>;
+  setActiveSearchResults: (results: SearchResult[]) => void;
   toggleSidebar: () => void;
   setActiveProject: (projectId: string | null) => void;
   bootstrap: () => Promise<void>;
@@ -184,6 +187,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   locale: readStoredLocale(),
   tavilyConfig: null,
   isSearchEnabled: false,
+  activeSearchResults: [],
   isSidebarCollapsed: false,
   setPage: (page) =>
     set((state) => {
@@ -220,6 +224,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const config = await tauriClient.getTavilyConfig();
     set({ tavilyConfig: config });
   },
+  setActiveSearchResults: (results) => set({ activeSearchResults: results }),
   saveTavilyConfig: async (enabled, apiKey) => {
     const config = await tauriClient.saveTavilyConfig(enabled, apiKey);
     set({ tavilyConfig: config, isSearchEnabled: enabled });
@@ -557,10 +562,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           const results = await tauriClient.searchWeb(trimmed);
           if (results.length > 0) {
             const formatted = results
-              .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n${r.content}`)
+              .map(
+                (r, i) => `[${i + 1}] ${r.title}\nURL: ${r.url}\n${r.content}`,
+              )
               .join("\n\n");
             searchPrefix =
-              "Here are web search results:\n\n" + formatted + "\n\n---\n";
+              "I searched the web and found these results:\n\n" +
+              formatted +
+              "\n\n---\nUse [1], [2], etc. to cite sources when answering. Only cite sources if they are actually relevant to the answer.";
 
             set((current) => ({
               messages: current.messages.map((msg) =>
@@ -572,6 +581,7 @@ export const useAppStore = create<AppState>((set, get) => ({
                     }
                   : msg,
               ),
+              activeSearchResults: results,
             }));
           } else {
             set((current) => ({
