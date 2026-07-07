@@ -4,19 +4,19 @@
   "platforms": {
     "windows-x86_64": {
       "signature": "",
-      "url": ""
+      "url": "https://github.com/MrSibe/Mira/releases"
     },
     "darwin-x86_64": {
       "signature": "",
-      "url": ""
+      "url": "https://github.com/MrSibe/Mira/releases"
     },
     "darwin-aarch64": {
       "signature": "",
-      "url": ""
+      "url": "https://github.com/MrSibe/Mira/releases"
     },
     "linux-x86_64": {
       "signature": "",
-      "url": ""
+      "url": "https://github.com/MrSibe/Mira/releases"
     }
   }
 }
