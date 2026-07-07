@@ -3,7 +3,9 @@ import {
   Archive,
   Bot,
   Check,
+  ExternalLink,
   Globe,
+  Info,
   KeyRound,
   Laptop,
   Moon,
@@ -19,6 +21,8 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { AlertDialog } from "../components/ui/alert-dialog";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -41,7 +45,8 @@ type SettingsSection =
   | "providers"
   | "models"
   | "memories"
-  | "archive";
+  | "archive"
+  | "about";
 type DeleteTarget =
   | { kind: "memory"; id: number }
   | { kind: "conversation"; conversation: Conversation }
@@ -110,6 +115,11 @@ export function SettingsPage() {
   const [editingFact, setEditingFact] = useState("");
   const [archiveQuery, setArchiveQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    void getVersion().then(setAppVersion);
+  }, []);
 
   useEffect(() => {
     if (!draftId && modelConfigs[0]) {
@@ -311,6 +321,12 @@ export function SettingsPage() {
               count={archivedConversations.length}
               onClick={() => setSection("archive")}
             />
+            <SettingsNavButton
+              active={section === "about"}
+              icon={Info}
+              label={t("settings.navAbout")}
+              onClick={() => setSection("about")}
+            />
           </div>
         </aside>
 
@@ -373,6 +389,7 @@ export function SettingsPage() {
                 confirmDeleteConversation,
               })
             : null}
+          {section === "about" ? renderAbout(t, appVersion) : null}
         </section>
       </main>
       <AlertDialog
@@ -1204,6 +1221,51 @@ function renderArchive({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const GITHUB_URL = "https://github.com/MrSibe/Mira";
+
+function renderAbout(t: ReturnType<typeof useT>, version: string) {
+  return (
+    <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
+      <header className="mb-8">
+        <h2 className="text-2xl font-semibold">{t("settings.about.title")}</h2>
+        <p className="mt-2 text-sm text-[var(--subtle)]">
+          {t("settings.about.description")}
+        </p>
+      </header>
+
+      <div className="max-w-md space-y-5">
+        <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3">
+          <span className="text-sm text-[var(--text)]">
+            {t("settings.about.version")}
+          </span>
+          <span className="text-sm font-medium text-[var(--text)]">
+            {version || "—"}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3">
+          <span className="text-sm text-[var(--text)]">
+            {t("settings.about.license")}
+          </span>
+          <span className="text-sm font-medium text-[var(--text)]">
+            GPL-3.0
+          </span>
+        </div>
+
+        <button
+          className="flex w-full items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3 text-left text-sm transition hover:bg-[var(--hover)]"
+          onClick={() => void openUrl(GITHUB_URL)}
+        >
+          <span className="text-[var(--text)]">
+            {t("settings.about.website")}
+          </span>
+          <ExternalLink className="h-4 w-4 text-[var(--subtle)]" />
+        </button>
+      </div>
     </div>
   );
 }

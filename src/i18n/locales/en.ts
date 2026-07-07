@@ -72,6 +72,7 @@ export const en = {
     navModels: "Models",
     navMemories: "Memory",
     navArchive: "Archive",
+    navAbout: "About",
     deleteDialogConversationTitle: "Delete archived conversation",
     deleteDialogMemoryTitle: "Delete memory",
     deleteDialogConversationDesc:
@@ -169,6 +170,13 @@ export const en = {
       empty: "No archived conversations",
       restore: "Restore conversation",
       delete: "Delete conversation",
+    },
+    about: {
+      title: "About Mira",
+      description: "Version and license information.",
+      version: "Version",
+      license: "License",
+      website: "Website",
     },
   },
   time: {

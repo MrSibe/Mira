@@ -73,6 +73,7 @@ export const zh: typeof en = {
     navModels: "模型",
     navMemories: "记忆",
     navArchive: "归档",
+    navAbout: "关于",
     deleteDialogConversationTitle: "删除归档对话",
     deleteDialogMemoryTitle: "删除记忆",
     deleteDialogConversationDesc: '将永久删除"{{title}}"，此操作不可撤销。',
@@ -163,6 +164,13 @@ export const zh: typeof en = {
       empty: "暂无归档对话",
       restore: "恢复对话",
       delete: "删除对话",
+    },
+    about: {
+      title: "关于 Mira",
+      description: "版本和许可证信息。",
+      version: "版本",
+      license: "许可证",
+      website: "官方网站",
     },
   },
   time: {
