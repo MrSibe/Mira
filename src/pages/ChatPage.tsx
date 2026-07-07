@@ -2,19 +2,27 @@ import { Sparkles } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Composer } from "../components/Composer";
 import { MessageBubble } from "../components/MessageBubble";
-import { Button } from "../components/ui/button";
+import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
-
-const suggestions = [
-  "整理一下我最近在做的项目",
-  "帮我记住这个项目的技术栈",
-  "根据我的偏好给出实现建议",
-  "继续上次的讨论",
-];
+import { cn } from "../utils/cn";
 
 export function ChatPage() {
+  const t = useT();
   const messages = useAppStore((state) => state.messages);
-  const sendMessage = useAppStore((state) => state.sendMessage);
+  const conversations = useAppStore((state) => state.conversations);
+  const activeConversationId = useAppStore(
+    (state) => state.activeConversationId,
+  );
+  const activeProjectId = useAppStore((state) => state.activeProjectId);
+  const selectConversation = useAppStore((state) => state.selectConversation);
+
+  const projectConversations =
+    activeProjectId && messages.length === 0
+      ? conversations.filter(
+          (c) =>
+            c.project_id === activeProjectId && c.id !== activeConversationId,
+        )
+      : [];
 
   return (
     <AppShell>
@@ -27,20 +35,33 @@ export function ChatPage() {
                   <Sparkles className="h-5 w-5 text-[var(--text)]" />
                 </div>
                 <h1 className="text-2xl font-semibold tracking-normal text-[var(--text)]">
-                  今天想聊什么？
+                  {t("chat.emptyHeading")}
                 </h1>
-                <div className="mt-8 grid w-full max-w-2xl grid-cols-2 gap-2">
-                  {suggestions.map((suggestion) => (
-                    <Button
-                      key={suggestion}
-                      className="h-auto justify-start whitespace-normal rounded-xl px-4 py-3 text-left text-sm font-normal leading-5"
-                      variant="outline"
-                      onClick={() => void sendMessage(suggestion)}
-                    >
-                      {suggestion}
-                    </Button>
-                  ))}
-                </div>
+                {projectConversations.length > 0 ? (
+                  <div className="mt-8 w-full max-w-2xl text-left">
+                    <div className="mb-2 text-[13px] font-medium text-[var(--subtle)]">
+                      {t("conversationList.projectConversations")}
+                    </div>
+                    <div className="space-y-1">
+                      {projectConversations.map((conversation) => (
+                        <button
+                          key={conversation.id}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
+                            "text-[var(--text)] hover:bg-[var(--hover)]",
+                          )}
+                          onClick={() =>
+                            void selectConversation(conversation.id)
+                          }
+                        >
+                          <span className="min-w-0 flex-1 truncate">
+                            {conversation.title}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex flex-col gap-6 pb-32 pt-4">

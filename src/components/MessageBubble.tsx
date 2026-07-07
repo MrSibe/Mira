@@ -1,9 +1,11 @@
 import { Bot } from "lucide-react";
 import type { ChatMessage } from "../core/types";
+import { useT } from "../i18n/useT";
 import { cn } from "../utils/cn";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
+  const t = useT();
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -24,7 +26,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
       {message.content.trim().length === 0 ? (
         <div className="flex min-h-7 items-center gap-2 text-sm text-[var(--muted)]">
           <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--primary)]" />
-          Mira 正在思考
+          {t("chat.thinking")}
         </div>
       ) : (
         <article

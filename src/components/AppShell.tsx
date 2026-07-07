@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from "react";
 import { ConversationList } from "./ConversationList";
+import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { cn } from "../utils/cn";
 
@@ -12,6 +13,7 @@ const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 360;
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const t = useT();
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const [sidebarWidth, setSidebarWidth] = useState(280);
 
@@ -48,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {isSidebarCollapsed ? null : <ConversationList />}
         {isSidebarCollapsed ? null : (
           <div
-            aria-label="调整侧栏宽度"
+            aria-label={t("appShell.resizeSidebar")}
             className="cursor-col-resize bg-transparent transition hover:bg-[var(--border-strong)]"
             role="separator"
             onPointerDown={startResize}

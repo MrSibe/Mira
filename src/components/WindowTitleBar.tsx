@@ -1,10 +1,12 @@
 import { Minus, PanelLeftClose, PanelLeftOpen, Square, X } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { MouseEvent, ReactNode } from "react";
+import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { cn } from "../utils/cn";
 
 export function WindowTitleBar() {
+  const t = useT();
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
   const currentPage = useAppStore((state) => state.currentPage);
@@ -22,8 +24,16 @@ export function WindowTitleBar() {
     <header className="flex h-9 shrink-0 items-center border-b border-[var(--border)] bg-[var(--bg)] text-[var(--text)] select-none">
       {currentPage === "settings" ? null : (
         <button
-          aria-label={isSidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
-          title={isSidebarCollapsed ? "展开侧栏" : "折叠侧栏"}
+          aria-label={
+            isSidebarCollapsed
+              ? t("window.expandSidebar")
+              : t("window.collapseSidebar")
+          }
+          title={
+            isSidebarCollapsed
+              ? t("window.expandSidebar")
+              : t("window.collapseSidebar")
+          }
           className="ml-2 flex h-7 w-7 items-center justify-center rounded-md text-[var(--subtle)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
           onClick={toggleSidebar}
         >
@@ -38,16 +48,23 @@ export function WindowTitleBar() {
         onMouseDown={startWindowDrag}
       />
 
-      <WindowButton label="最小化" onClick={() => void appWindow.minimize()}>
+      <WindowButton
+        label={t("window.minimize")}
+        onClick={() => void appWindow.minimize()}
+      >
         <Minus className="h-4 w-4" />
       </WindowButton>
       <WindowButton
-        label="最大化/还原"
+        label={t("window.maximize")}
         onClick={() => void appWindow.toggleMaximize()}
       >
         <Square className="h-3.5 w-3.5" />
       </WindowButton>
-      <WindowButton label="关闭" danger onClick={() => void appWindow.close()}>
+      <WindowButton
+        label={t("window.close")}
+        danger
+        onClick={() => void appWindow.close()}
+      >
         <X className="h-4 w-4" />
       </WindowButton>
     </header>

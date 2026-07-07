@@ -3,13 +3,13 @@ import {
   Archive,
   Bot,
   Check,
+  Globe,
   KeyRound,
   Laptop,
   Moon,
   Palette,
   Pencil,
   Plus,
-  RefreshCcw,
   Save,
   Search,
   Server,
@@ -26,11 +26,13 @@ import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import type {
   Conversation,
+  Locale,
   Memory,
   ModelConfig,
   ModelSettings,
   ThemeMode,
 } from "../core/types";
+import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { cn } from "../utils/cn";
 
@@ -42,25 +44,47 @@ type SettingsSection =
   | "archive";
 type DeleteTarget =
   | { kind: "memory"; id: number }
-  | { kind: "conversation"; conversation: Conversation };
+  | { kind: "conversation"; conversation: Conversation }
+  | { kind: "provider"; id: string; name: string };
 
-const themeOptions: Array<{
+const themeOptionKeys: Array<{
   value: ThemeMode;
-  label: string;
+  labelKey:
+    | "settings.appearance.themeLight"
+    | "settings.appearance.themeDark"
+    | "settings.appearance.themeSystem";
   icon: typeof Sun;
 }> = [
-  { value: "light", label: "浅色", icon: Sun },
-  { value: "dark", label: "深色", icon: Moon },
-  { value: "system", label: "跟随系统", icon: Laptop },
+  { value: "light", labelKey: "settings.appearance.themeLight", icon: Sun },
+  { value: "dark", labelKey: "settings.appearance.themeDark", icon: Moon },
+  {
+    value: "system",
+    labelKey: "settings.appearance.themeSystem",
+    icon: Laptop,
+  },
+];
+
+const localeOptionKeys: Array<{
+  value: Locale;
+  labelKey:
+    | "settings.appearance.langEnglish"
+    | "settings.appearance.langChinese";
+}> = [
+  { value: "en", labelKey: "settings.appearance.langEnglish" },
+  { value: "zh", labelKey: "settings.appearance.langChinese" },
 ];
 
 export function SettingsPage() {
+  const t = useT();
   const modelConfigs = useAppStore((state) => state.modelConfigs);
   const modelSettings = useAppStore((state) => state.modelSettings);
   const saveModelConfig = useAppStore((state) => state.saveModelConfig);
+  const deleteModelConfig = useAppStore((state) => state.deleteModelConfig);
   const saveModelSettings = useAppStore((state) => state.saveModelSettings);
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
+  const locale = useAppStore((state) => state.locale);
+  const setLocale = useAppStore((state) => state.setLocale);
   const memories = useAppStore((state) => state.memories);
   const loadMemories = useAppStore((state) => state.loadMemories);
   const createSavedMemory = useAppStore((state) => state.createSavedMemory);
@@ -73,34 +97,37 @@ export function SettingsPage() {
   const deleteConversation = useAppStore((state) => state.deleteConversation);
   const setPage = useAppStore((state) => state.setPage);
   const [section, setSection] = useState<SettingsSection>("providers");
-  const visibleModelConfigs = useMemo(
-    () =>
-      modelConfigs.filter(
-        (config) =>
-          config.provider !== "mock" && config.base_url !== "mock://local",
-      ),
-    [modelConfigs],
-  );
-  const [draftId, setDraftId] = useState(visibleModelConfigs[0]?.id ?? "");
-  const selected = visibleModelConfigs.find((config) => config.id === draftId);
+  const [draftId, setDraftId] = useState(modelConfigs[0]?.id ?? "");
+  const selected = modelConfigs.find((config) => config.id === draftId);
   const [draft, setDraft] = useState<ModelConfig | null>(selected ?? null);
+  const isDraftNew = !modelConfigs.some((config) => config.id === draftId);
+  const [showSavedHint, setShowSavedHint] = useState(false);
+  const [isChangingKey, setIsChangingKey] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
   const [newMemoryFact, setNewMemoryFact] = useState("");
+  const [isAddMemoryOpen, setIsAddMemoryOpen] = useState(false);
   const [editingMemoryId, setEditingMemoryId] = useState<number | null>(null);
   const [editingFact, setEditingFact] = useState("");
   const [archiveQuery, setArchiveQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   useEffect(() => {
-    if (!draftId && visibleModelConfigs[0]) {
-      setDraftId(visibleModelConfigs[0].id);
+    if (!draftId && modelConfigs[0]) {
+      setDraftId(modelConfigs[0].id);
     }
-  }, [draftId, visibleModelConfigs]);
+  }, [draftId, modelConfigs]);
 
   useEffect(() => {
     if (selected) {
       setDraft(selected);
     }
   }, [selected]);
+
+  useEffect(() => {
+    setIsChangingKey(false);
+    setProviderError(null);
+    setShowSavedHint(false);
+  }, [draftId]);
 
   useEffect(() => {
     void loadMemories();
@@ -115,25 +142,83 @@ export function SettingsPage() {
       conversation.title.toLowerCase().includes(query),
     );
   }, [archivedConversations, archiveQuery]);
+  const dateLocale = locale === "zh" ? "zh-CN" : "en-US";
 
   function updateDraft(patch: Partial<ModelConfig>) {
     setDraft((current) => (current ? { ...current, ...patch } : current));
   }
 
-  function createCustomDraft() {
+  function startAddProvider() {
     const id = `custom-${Date.now()}`;
     const config: ModelConfig = {
       id,
       provider: "custom",
-      name: "自定义 Provider",
-      base_url: "https://api.example.com/v1",
-      model: "custom-model",
+      name: "",
+      base_url: "",
+      model: "",
       api_key: null,
       is_default: false,
     };
     setSection("providers");
     setDraftId(id);
     setDraft(config);
+  }
+
+  function cancelAddProvider() {
+    const fallback = modelConfigs[0]?.id ?? "";
+    setDraftId(fallback);
+    setDraft(modelConfigs[0] ?? null);
+  }
+
+  function deriveProvider(name: string): string {
+    const slug = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return slug || "custom";
+  }
+
+  async function handleSaveProvider(event: FormEvent) {
+    event.preventDefault();
+    if (!draft) {
+      return;
+    }
+    setProviderError(null);
+    const provider = isDraftNew ? deriveProvider(draft.name) : draft.provider;
+    const toSave: ModelConfig = { ...draft, provider };
+    try {
+      await saveModelConfig(toSave);
+      setShowSavedHint(true);
+      setIsChangingKey(false);
+      window.setTimeout(() => setShowSavedHint(false), 2000);
+    } catch (error) {
+      setProviderError(String(error));
+    }
+  }
+
+  function confirmDeleteProvider() {
+    if (!draft || isDraftNew) {
+      return;
+    }
+    setDeleteTarget({
+      kind: "provider",
+      id: draft.id,
+      name: draft.name,
+    });
+  }
+
+  async function runDeleteProvider(id: string) {
+    setProviderError(null);
+    try {
+      await deleteModelConfig(id);
+      const remaining = useAppStore.getState().modelConfigs;
+      const nextId = remaining[0]?.id ?? "";
+      setDraftId(nextId);
+      setDraft(remaining[0] ?? null);
+    } catch (error) {
+      setProviderError(String(error));
+    }
   }
 
   async function submitSavedMemory(event: FormEvent) {
@@ -143,6 +228,7 @@ export function SettingsPage() {
       return;
     }
     setNewMemoryFact("");
+    setIsAddMemoryOpen(false);
     await createSavedMemory(trimmed);
   }
 
@@ -170,8 +256,10 @@ export function SettingsPage() {
     }
     if (deleteTarget.kind === "memory") {
       void deleteMemory(deleteTarget.id);
-    } else {
+    } else if (deleteTarget.kind === "conversation") {
       void deleteConversation(deleteTarget.conversation.id);
+    } else {
+      void runDeleteProvider(deleteTarget.id);
     }
   }
 
@@ -180,10 +268,10 @@ export function SettingsPage() {
       <main className="grid h-full min-w-0 grid-cols-[260px_minmax(0,1fr)] overflow-hidden bg-[var(--bg)] text-[var(--text)]">
         <aside className="flex min-h-0 flex-col border-r border-[var(--border)] bg-[var(--panel-soft)] px-3 py-4">
           <div className="mb-5 flex items-center justify-between px-2">
-            <h1 className="text-base font-semibold">设置</h1>
+            <h1 className="text-base font-semibold">{t("settings.title")}</h1>
             <button
-              aria-label="返回聊天"
-              title="返回聊天"
+              aria-label={t("settings.backToChat")}
+              title={t("settings.backToChat")}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
               onClick={() => setPage("chat")}
             >
@@ -195,31 +283,31 @@ export function SettingsPage() {
             <SettingsNavButton
               active={section === "appearance"}
               icon={Palette}
-              label="外观"
+              label={t("settings.navAppearance")}
               onClick={() => setSection("appearance")}
             />
             <SettingsNavButton
               active={section === "providers"}
               icon={Server}
-              label="供应商"
+              label={t("settings.navProviders")}
               onClick={() => setSection("providers")}
             />
             <SettingsNavButton
               active={section === "models"}
               icon={Bot}
-              label="模型"
+              label={t("settings.navModels")}
               onClick={() => setSection("models")}
             />
             <SettingsNavButton
               active={section === "memories"}
               icon={KeyRound}
-              label="记忆"
+              label={t("settings.navMemories")}
               onClick={() => setSection("memories")}
             />
             <SettingsNavButton
               active={section === "archive"}
               icon={Archive}
-              label="归档"
+              label={t("settings.navArchive")}
               count={archivedConversations.length}
               onClick={() => setSection("archive")}
             />
@@ -228,43 +316,56 @@ export function SettingsPage() {
 
         <section className="min-h-0 overflow-y-auto">
           {section === "appearance"
-            ? renderAppearance(themeMode, setThemeMode)
+            ? renderAppearance(themeMode, setThemeMode, locale, setLocale, t)
             : null}
           {section === "providers"
             ? renderProviders({
-                configs: visibleModelConfigs,
+                t,
+                configs: modelConfigs,
                 draft,
                 draftId,
                 setDraftId,
                 updateDraft,
-                saveModelConfig,
-                createCustomDraft,
+                isDraftNew,
+                showSavedHint,
+                isChangingKey,
+                setIsChangingKey,
+                providerError,
+                onSubmit: handleSaveProvider,
+                onAdd: startAddProvider,
+                onCancelAdd: cancelAddProvider,
+                onDelete: confirmDeleteProvider,
               })
             : null}
           {section === "models"
             ? renderModels({
-                configs: visibleModelConfigs,
+                t,
+                configs: modelConfigs,
                 settings: modelSettings,
                 saveModelSettings,
               })
             : null}
           {section === "memories"
             ? renderMemories({
+                t,
                 memories,
                 newMemoryFact,
+                isAddMemoryOpen,
                 editingMemoryId,
                 editingFact,
                 setNewMemoryFact,
+                setIsAddMemoryOpen,
                 setEditingMemoryId,
                 setEditingFact,
                 submitSavedMemory,
                 saveEditedMemory,
                 confirmDeleteMemory,
-                loadMemories,
               })
             : null}
           {section === "archive"
             ? renderArchive({
+                t,
+                dateLocale,
                 query: archiveQuery,
                 setQuery: setArchiveQuery,
                 conversations: filteredArchivedConversations,
@@ -277,14 +378,28 @@ export function SettingsPage() {
       <AlertDialog
         open={deleteTarget !== null}
         title={
-          deleteTarget?.kind === "conversation" ? "删除归档对话" : "删除记忆"
+          deleteTarget?.kind === "conversation"
+            ? t("settings.deleteDialogConversationTitle")
+            : deleteTarget?.kind === "provider"
+              ? t("settings.providers.deleteDialogTitle")
+              : t("settings.deleteDialogMemoryTitle")
         }
         description={
           deleteTarget?.kind === "conversation"
-            ? `将永久删除“${deleteTarget.conversation.title}”，此操作不可撤销。`
-            : "将永久删除这条记忆，此操作不可撤销。"
+            ? t("settings.deleteDialogConversationDesc", {
+                title: deleteTarget.conversation.title,
+              })
+            : deleteTarget?.kind === "provider"
+              ? t("settings.providers.deleteDialogDesc", {
+                  name: deleteTarget.name,
+                })
+              : t("settings.deleteDialogMemoryDesc")
         }
-        confirmLabel="删除"
+        confirmLabel={
+          deleteTarget?.kind === "provider"
+            ? t("settings.providers.deleteDialogConfirm")
+            : t("settings.deleteDialogConfirm")
+        }
         onConfirm={runDeleteTarget}
         onOpenChange={(open) => {
           if (!open) {
@@ -333,17 +448,22 @@ function SettingsNavButton({
 function renderAppearance(
   themeMode: ThemeMode,
   setThemeMode: (themeMode: ThemeMode) => void,
+  locale: Locale,
+  setLocale: (locale: Locale) => void,
+  t: ReturnType<typeof useT>,
 ) {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
       <header className="mb-8">
-        <h2 className="text-2xl font-semibold">外观</h2>
+        <h2 className="text-2xl font-semibold">
+          {t("settings.appearance.title")}
+        </h2>
         <p className="mt-2 text-sm text-[var(--subtle)]">
-          调整 Mira 的深浅色显示方式。
+          {t("settings.appearance.description")}
         </p>
       </header>
       <div className="inline-flex w-fit rounded-lg border border-[var(--border-strong)] bg-[var(--panel-soft)] p-1">
-        {themeOptions.map((option) => {
+        {themeOptionKeys.map((option) => {
           const Icon = option.icon;
           return (
             <button
@@ -357,49 +477,96 @@ function renderAppearance(
               onClick={() => setThemeMode(option.value)}
             >
               <Icon className="h-4 w-4" />
-              {option.label}
+              {t(option.labelKey)}
             </button>
           );
         })}
+      </div>
+
+      <div className="mt-10">
+        <h3 className="mb-3 text-sm font-semibold text-[var(--text)]">
+          <span className="inline-flex items-center gap-2">
+            <Globe className="h-4 w-4 text-[var(--subtle)]" />
+            {t("settings.appearance.language")}
+          </span>
+        </h3>
+        <p className="mb-4 text-sm text-[var(--subtle)]">
+          {t("settings.appearance.languageDescription")}
+        </p>
+        <div className="inline-flex w-fit rounded-lg border border-[var(--border-strong)] bg-[var(--panel-soft)] p-1">
+          {localeOptionKeys.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={cn(
+                "inline-flex h-10 items-center gap-2 rounded-md px-4 text-sm text-[var(--muted)] transition",
+                locale === option.value &&
+                  "bg-[var(--panel)] text-[var(--text)] shadow-sm",
+              )}
+              onClick={() => setLocale(option.value)}
+            >
+              {t(option.labelKey)}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
 function renderProviders({
+  t,
   configs,
   draft,
   draftId,
   setDraftId,
   updateDraft,
-  saveModelConfig,
-  createCustomDraft,
+  isDraftNew,
+  showSavedHint,
+  isChangingKey,
+  setIsChangingKey,
+  providerError,
+  onSubmit,
+  onAdd,
+  onCancelAdd,
+  onDelete,
 }: {
+  t: ReturnType<typeof useT>;
   configs: ModelConfig[];
   draft: ModelConfig | null;
   draftId: string;
   setDraftId: (id: string) => void;
   updateDraft: (patch: Partial<ModelConfig>) => void;
-  saveModelConfig: (config: ModelConfig) => Promise<void>;
-  createCustomDraft: () => void;
+  isDraftNew: boolean;
+  showSavedHint: boolean;
+  isChangingKey: boolean;
+  setIsChangingKey: (value: boolean) => void;
+  providerError: string | null;
+  onSubmit: (event: FormEvent) => Promise<void>;
+  onAdd: () => void;
+  onCancelAdd: () => void;
+  onDelete: () => void;
 }) {
   const providerItems =
     draft && !configs.some((config) => config.id === draft.id)
       ? [draft, ...configs]
       : configs;
 
+  const keyStored = draft?.credential_status === "stored";
+  const showKeyInput = isDraftNew || !keyStored || isChangingKey;
+
   return (
     <div className="grid h-full min-h-0 grid-cols-[250px_minmax(0,1fr)]">
       <aside className="min-h-0 border-r border-[var(--border)] bg-[var(--panel)] px-3 py-4">
         <div className="mb-3 flex items-center justify-between px-2">
           <span className="text-xs font-medium text-[var(--subtle)]">
-            供应商
+            {t("settings.providers.asideLabel")}
           </span>
           <button
-            aria-label="新增供应商"
-            title="新增供应商"
+            aria-label={t("settings.providers.add")}
+            title={t("settings.providers.add")}
             className="rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
-            onClick={createCustomDraft}
+            onClick={onAdd}
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -407,7 +574,7 @@ function renderProviders({
         <div className="space-y-1">
           {providerItems.length === 0 ? (
             <div className="px-2 py-3 text-xs leading-5 text-[var(--subtle)]">
-              暂无供应商
+              {t("settings.providers.empty")}
             </div>
           ) : (
             providerItems.map((config) => (
@@ -422,10 +589,10 @@ function renderProviders({
                 onClick={() => setDraftId(config.id)}
               >
                 <span className="block truncate font-medium">
-                  {config.name}
+                  {config.name || t("settings.providers.customDefaultName")}
                 </span>
                 <span className="block truncate text-xs text-[var(--subtle)]">
-                  {config.provider}
+                  {config.model || "—"}
                 </span>
               </button>
             ))
@@ -435,24 +602,24 @@ function renderProviders({
 
       <div className="min-h-0 overflow-y-auto px-8 py-8">
         <header className="mb-8">
-          <h2 className="text-2xl font-semibold">供应商</h2>
+          <h2 className="text-2xl font-semibold">
+            {t("settings.providers.title")}
+          </h2>
           <p className="mt-2 text-sm text-[var(--subtle)]">
-            API Key 存入系统凭据库，界面只显示脱敏状态。
+            {t("settings.providers.description")}
           </p>
         </header>
 
         {draft ? (
           <form
             className="grid max-w-3xl gap-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveModelConfig(draft);
-            }}
+            onSubmit={(event) => void onSubmit(event)}
           >
             <label className="block text-sm font-medium">
-              名称
+              {t("settings.providers.name")}
               <Input
                 className="mt-2"
+                placeholder={t("settings.providers.namePlaceholder")}
                 value={draft.name}
                 onChange={(event) =>
                   updateDraft({ name: event.currentTarget.value })
@@ -460,19 +627,10 @@ function renderProviders({
               />
             </label>
             <label className="block text-sm font-medium">
-              Provider
+              {t("settings.providers.baseUrl")}
               <Input
                 className="mt-2"
-                value={draft.provider}
-                onChange={(event) =>
-                  updateDraft({ provider: event.currentTarget.value })
-                }
-              />
-            </label>
-            <label className="block text-sm font-medium">
-              Base URL
-              <Input
-                className="mt-2"
+                placeholder={t("settings.providers.baseUrlPlaceholder")}
                 value={draft.base_url}
                 onChange={(event) =>
                   updateDraft({ base_url: event.currentTarget.value })
@@ -480,50 +638,135 @@ function renderProviders({
               />
             </label>
             <label className="block text-sm font-medium">
-              Model
+              {t("settings.providers.model")}
               <Input
                 className="mt-2"
+                placeholder={t("settings.providers.modelPlaceholder")}
                 value={draft.model}
                 onChange={(event) =>
                   updateDraft({ model: event.currentTarget.value })
                 }
               />
             </label>
-            <label className="block text-sm font-medium">
-              API Key
-              <Input
-                className="mt-2"
-                type="password"
-                placeholder={
-                  draft.api_key === "******" ? "已保存，留空不覆盖" : "sk-..."
-                }
-                value={draft.api_key === "******" ? "" : (draft.api_key ?? "")}
-                onChange={(event) =>
-                  updateDraft({ api_key: event.currentTarget.value || null })
-                }
-              />
-              <span className="mt-2 block text-xs text-[var(--subtle)]">
-                {credentialStatusText(draft)}
-              </span>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <Button>
-                <Save className="h-4 w-4" />
-                保存配置
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void saveModelConfig({ ...draft, api_key: "" })}
-              >
-                <Trash2 className="h-4 w-4" />
-                移除 Key
-              </Button>
+            <div className="block text-sm font-medium">
+              {t("settings.providers.apiKey")}
+              {showKeyInput ? (
+                <>
+                  <Input
+                    className="mt-2"
+                    type="password"
+                    placeholder={
+                      keyStored
+                        ? t("settings.providers.apiKeyPlaceholderSaved")
+                        : t("settings.providers.apiKeyPlaceholderEmpty")
+                    }
+                    value={
+                      draft.api_key === "******" ? "" : (draft.api_key ?? "")
+                    }
+                    onChange={(event) =>
+                      updateDraft({
+                        api_key: event.currentTarget.value || null,
+                      })
+                    }
+                  />
+                  <span className="mt-2 block text-xs text-[var(--subtle)]">
+                    {t("settings.providers.apiKeyVaultHint")}
+                  </span>
+                  {!isDraftNew ? (
+                    <span className="mt-1 block text-xs text-[var(--subtle)]">
+                      {credentialStatusText(draft, t)}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--panel-soft)] px-2.5 py-1.5 text-xs font-medium text-[var(--text)]">
+                    <Check className="h-3.5 w-3.5 text-[var(--primary)]" />
+                    {t("settings.providers.apiKeySaved")}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsChangingKey(true);
+                      updateDraft({ api_key: "" });
+                    }}
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    {t("settings.providers.changeKey")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-[var(--danger)]"
+                    onClick={() => updateDraft({ api_key: "" })}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {t("settings.providers.removeKey")}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {providerError ? (
+              <div className="rounded-md border border-[var(--danger)] bg-[var(--panel-soft)] px-3 py-2 text-xs text-[var(--danger)]">
+                {providerError}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-2">
+              {isDraftNew ? (
+                <>
+                  <Button type="button" variant="ghost" onClick={onCancelAdd}>
+                    {t("settings.providers.cancel")}
+                  </Button>
+                  <Button type="submit">
+                    <Plus className="h-4 w-4" />
+                    {t("settings.providers.addProvider")}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-[var(--danger)]"
+                    onClick={onDelete}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {t("settings.providers.deleteProvider")}
+                  </Button>
+                  <Button type="submit">
+                    <Save className="h-4 w-4" />
+                    {t("settings.providers.saveChanges")}
+                  </Button>
+                  {showSavedHint ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-[var(--primary)]">
+                      <Check className="h-3.5 w-3.5" />
+                      {t("settings.providers.savedHint")}
+                    </span>
+                  ) : null}
+                </>
+              )}
             </div>
           </form>
         ) : (
-          <div className="rounded-lg border border-dashed border-[var(--border-strong)] px-4 py-10 text-sm text-[var(--subtle)]">
-            暂无供应商配置
+          <div className="mx-auto flex max-w-md flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border-strong)] px-6 py-16 text-center">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel)]">
+              <Server className="h-5 w-5 text-[var(--subtle)]" />
+            </div>
+            <h3 className="text-base font-semibold text-[var(--text)]">
+              {t("settings.providers.emptyTitle")}
+            </h3>
+            <p className="mt-2 text-sm text-[var(--subtle)]">
+              {t("settings.providers.emptyDescription")}
+            </p>
+            <Button className="mt-5" onClick={onAdd}>
+              <Plus className="h-4 w-4" />
+              {t("settings.providers.emptyCta")}
+            </Button>
           </div>
         )}
       </div>
@@ -532,10 +775,12 @@ function renderProviders({
 }
 
 function renderModels({
+  t,
   configs,
   settings,
   saveModelSettings,
 }: {
+  t: ReturnType<typeof useT>;
   configs: ModelConfig[];
   settings: ModelSettings | null;
   saveModelSettings: (settings: ModelSettings) => Promise<void>;
@@ -562,15 +807,15 @@ function renderModels({
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
       <header className="mb-8">
-        <h2 className="text-2xl font-semibold">模型</h2>
+        <h2 className="text-2xl font-semibold">{t("settings.models.title")}</h2>
         <p className="mt-2 text-sm text-[var(--subtle)]">
-          对话模型负责聊天体验，后台模型用于记忆提炼、标题和摘要。
+          {t("settings.models.description")}
         </p>
       </header>
 
       <div className="grid max-w-3xl gap-5">
         <label className="block text-sm font-medium">
-          对话模型
+          {t("settings.models.chatModel")}
           <select
             className="mt-2 h-10 w-full rounded-md border border-[var(--border-strong)] bg-[var(--panel)] px-3 text-sm text-[var(--text)] outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
             disabled={configs.length === 0}
@@ -584,7 +829,9 @@ function renderModels({
               })
             }
           >
-            {configs.length === 0 ? <option value="">暂无模型</option> : null}
+            {configs.length === 0 ? (
+              <option value="">{t("settings.models.noModels")}</option>
+            ) : null}
             {configs.map((config) => (
               <option key={config.id} value={config.id}>
                 {config.name} · {config.model}
@@ -610,11 +857,10 @@ function renderModels({
             />
             <span>
               <span className="block font-medium text-[var(--text)]">
-                后台模型跟随对话模型
+                {t("settings.models.backgroundFollows")}
               </span>
               <span className="mt-1 block leading-5 text-[var(--subtle)]">
-                推荐保持开启。关闭后可以为记忆 planner
-                单独选择更便宜、稳定的模型。
+                {t("settings.models.backgroundFollowsDesc")}
               </span>
             </span>
           </label>
@@ -622,7 +868,7 @@ function renderModels({
 
         {!followsChat ? (
           <label className="block text-sm font-medium">
-            后台模型
+            {t("settings.models.backgroundModel")}
             <select
               className="mt-2 h-10 w-full rounded-md border border-[var(--border-strong)] bg-[var(--panel)] px-3 text-sm text-[var(--text)] outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
               disabled={configs.length === 0}
@@ -634,7 +880,9 @@ function renderModels({
                 })
               }
             >
-              {configs.length === 0 ? <option value="">暂无模型</option> : null}
+              {configs.length === 0 ? (
+                <option value="">{t("settings.models.noModels")}</option>
+              ) : null}
               {configs.map((config) => (
                 <option key={config.id} value={config.id}>
                   {config.name} · {config.model}
@@ -648,74 +896,83 @@ function renderModels({
   );
 }
 
-function credentialStatusText(config: ModelConfig): string {
+function credentialStatusText(
+  config: ModelConfig,
+  t: ReturnType<typeof useT>,
+): string {
   if (config.credential_status === "stored") {
-    return "API Key 已保存到系统凭据库。";
+    return t("settings.providers.credentialStored");
   }
   if (config.credential_status === "error") {
-    return `系统凭据读取失败：${config.credential_error ?? "未知错误"}`;
+    return t("settings.providers.credentialError", {
+      error:
+        config.credential_error ??
+        t("settings.providers.credentialErrorUnknown"),
+    });
   }
-  return "尚未保存 API Key。";
+  return t("settings.providers.credentialMissing");
+}
+
+function memoryTypeLabel(memory: Memory, t: ReturnType<typeof useT>): string {
+  switch (memory.memory_type) {
+    case "saved":
+      return t("settings.memories.typeSaved");
+    case "project":
+      return t("settings.memories.typeProject");
+    default:
+      return t("settings.memories.typeAuto");
+  }
 }
 
 function renderMemories({
+  t,
   memories,
   newMemoryFact,
+  isAddMemoryOpen,
   editingMemoryId,
   editingFact,
   setNewMemoryFact,
+  setIsAddMemoryOpen,
   setEditingMemoryId,
   setEditingFact,
   submitSavedMemory,
   saveEditedMemory,
   confirmDeleteMemory,
-  loadMemories,
 }: {
+  t: ReturnType<typeof useT>;
   memories: Memory[];
   newMemoryFact: string;
+  isAddMemoryOpen: boolean;
   editingMemoryId: number | null;
   editingFact: string;
   setNewMemoryFact: (value: string) => void;
+  setIsAddMemoryOpen: (value: boolean) => void;
   setEditingMemoryId: (value: number | null) => void;
   setEditingFact: (value: string) => void;
   submitSavedMemory: (event: FormEvent) => Promise<void>;
   saveEditedMemory: (id: number) => Promise<void>;
   confirmDeleteMemory: (id: number) => void;
-  loadMemories: (query?: string) => Promise<void>;
 }) {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold">记忆</h2>
+          <h2 className="text-2xl font-semibold">
+            {t("settings.memories.title")}
+          </h2>
           <p className="mt-2 text-sm text-[var(--subtle)]">
-            saved 可手动编辑，自动记忆只支持删除。
+            {t("settings.memories.description")}
           </p>
         </div>
-        <Button variant="outline" onClick={() => void loadMemories()}>
-          <RefreshCcw className="h-4 w-4" />
-          刷新
+        <Button variant="outline" onClick={() => setIsAddMemoryOpen(true)}>
+          <Plus className="h-4 w-4" />
+          {t("settings.memories.add")}
         </Button>
       </header>
 
-      <form
-        className="mb-5 flex max-w-3xl gap-2"
-        onSubmit={(event) => void submitSavedMemory(event)}
-      >
-        <Input
-          placeholder="新增 saved 记忆"
-          value={newMemoryFact}
-          onChange={(event) => setNewMemoryFact(event.currentTarget.value)}
-        />
-        <Button className="shrink-0" type="submit">
-          <Plus className="h-4 w-4" />
-          新增
-        </Button>
-      </form>
-
       {memories.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[var(--border-strong)] px-4 py-10 text-center text-sm text-[var(--subtle)]">
-          暂无记忆
+          {t("settings.memories.empty")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -726,9 +983,9 @@ function renderMemories({
             >
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Badge>{memory.memory_type ?? "chat_history"}</Badge>
+                  <Badge>{memoryTypeLabel(memory, t)}</Badge>
                   <span className="truncate text-xs text-[var(--subtle)]">
-                    使用 {memory.use_count} 次
+                    {t("settings.memories.usedCount", { n: memory.use_count })}
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -736,8 +993,8 @@ function renderMemories({
                     editingMemoryId === memory.id ? (
                       <>
                         <Button
-                          aria-label="保存记忆"
-                          title="保存记忆"
+                          aria-label={t("settings.memories.save")}
+                          title={t("settings.memories.save")}
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
@@ -746,8 +1003,8 @@ function renderMemories({
                           <Check className="h-4 w-4" />
                         </Button>
                         <Button
-                          aria-label="取消编辑"
-                          title="取消编辑"
+                          aria-label={t("settings.memories.cancelEdit")}
+                          title={t("settings.memories.cancelEdit")}
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
@@ -761,8 +1018,8 @@ function renderMemories({
                       </>
                     ) : (
                       <Button
-                        aria-label="编辑 saved 记忆"
-                        title="编辑 saved 记忆"
+                        aria-label={t("settings.memories.edit")}
+                        title={t("settings.memories.edit")}
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
@@ -776,8 +1033,8 @@ function renderMemories({
                     )
                   ) : null}
                   <Button
-                    aria-label="删除记忆"
-                    title="删除记忆"
+                    aria-label={t("settings.memories.delete")}
+                    title={t("settings.memories.delete")}
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8"
@@ -803,17 +1060,75 @@ function renderMemories({
           ))}
         </div>
       )}
+
+      {isAddMemoryOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <form
+            className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-soft)]"
+            onSubmit={(event) => void submitSavedMemory(event)}
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--text)]">
+                  {t("settings.memories.addDialogOpen")}
+                </h2>
+                <p className="mt-1 text-xs text-[var(--subtle)]">
+                  {t("settings.memories.addDialogDesc")}
+                </p>
+              </div>
+              <button
+                aria-label={t("settings.memories.addDialogCancel")}
+                title={t("settings.memories.addDialogCancel")}
+                type="button"
+                className="rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)]"
+                onClick={() => {
+                  setNewMemoryFact("");
+                  setIsAddMemoryOpen(false);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <Textarea
+              autoFocus
+              placeholder={t("settings.memories.addDialogPlaceholder")}
+              value={newMemoryFact}
+              onChange={(event) => setNewMemoryFact(event.currentTarget.value)}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setNewMemoryFact("");
+                  setIsAddMemoryOpen(false);
+                }}
+              >
+                {t("settings.memories.addDialogCancel")}
+              </Button>
+              <Button type="submit" disabled={!newMemoryFact.trim()}>
+                <Plus className="h-4 w-4" />
+                {t("settings.memories.addDialogConfirm")}
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function renderArchive({
+  t,
+  dateLocale,
   query,
   setQuery,
   conversations,
   restoreConversation,
   confirmDeleteConversation,
 }: {
+  t: ReturnType<typeof useT>;
+  dateLocale: string;
   query: string;
   setQuery: (value: string) => void;
   conversations: Conversation[];
@@ -823,9 +1138,11 @@ function renderArchive({
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
       <header className="mb-6">
-        <h2 className="text-2xl font-semibold">归档</h2>
+        <h2 className="text-2xl font-semibold">
+          {t("settings.archive.title")}
+        </h2>
         <p className="mt-2 text-sm text-[var(--subtle)]">
-          搜索、恢复或删除已归档的对话。
+          {t("settings.archive.description")}
         </p>
       </header>
 
@@ -833,7 +1150,7 @@ function renderArchive({
         <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[var(--subtle)]" />
         <Input
           className="h-9 pl-9"
-          placeholder="搜索归档对话"
+          placeholder={t("settings.archive.searchPlaceholder")}
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
         />
@@ -841,7 +1158,7 @@ function renderArchive({
 
       {conversations.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[var(--border-strong)] px-4 py-10 text-center text-sm text-[var(--subtle)]">
-          暂无归档对话
+          {t("settings.archive.empty")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -857,12 +1174,14 @@ function renderArchive({
                     {conversation.title}
                   </div>
                   <div className="mt-0.5 text-xs text-[var(--subtle)]">
-                    {new Date(conversation.updated_at).toLocaleString()}
+                    {new Date(conversation.updated_at).toLocaleString(
+                      dateLocale,
+                    )}
                   </div>
                 </div>
                 <Button
-                  aria-label="恢复对话"
-                  title="恢复对话"
+                  aria-label={t("settings.archive.restore")}
+                  title={t("settings.archive.restore")}
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8"
@@ -871,8 +1190,8 @@ function renderArchive({
                   <Undo2 className="h-4 w-4" />
                 </Button>
                 <Button
-                  aria-label="删除对话"
-                  title="删除对话"
+                  aria-label={t("settings.archive.delete")}
+                  title={t("settings.archive.delete")}
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8"

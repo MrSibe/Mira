@@ -1,10 +1,12 @@
 import { ArrowUp } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 
 export function Composer() {
+  const t = useT();
   const [content, setContent] = useState("");
   const isSending = useAppStore((state) => state.isSending);
   const sendMessage = useAppStore((state) => state.sendMessage);
@@ -28,7 +30,7 @@ export function Composer() {
         <div className="flex min-h-14 items-end gap-2 rounded-2xl border border-[var(--border-strong)] bg-[var(--panel)] p-2 shadow-[var(--shadow-soft)]">
           <Textarea
             className="max-h-44 min-h-10 flex-1 border-0 bg-transparent px-2 py-2 shadow-none focus:border-0 focus:ring-0"
-            placeholder="询问任何问题"
+            placeholder={t("composer.placeholder")}
             value={content}
             onChange={(event) => setContent(event.currentTarget.value)}
             onKeyDown={(event) => {
@@ -39,8 +41,8 @@ export function Composer() {
             }}
           />
           <Button
-            aria-label="发送"
-            title="发送"
+            aria-label={t("composer.send")}
+            title={t("composer.send")}
             size="icon"
             className="mb-0.5 h-9 w-9 shrink-0 rounded-xl"
             disabled={!content.trim() || isSending}

@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
+import { useT } from "../../i18n/useT";
 import { Button } from "./button";
 
 interface AlertDialogProps {
@@ -17,12 +18,15 @@ export function AlertDialog({
   open,
   title,
   description,
-  confirmLabel = "确认",
+  confirmLabel,
   confirmVariant = "danger",
-  cancelLabel = "取消",
+  cancelLabel,
   onConfirm,
   onOpenChange,
 }: AlertDialogProps) {
+  const t = useT();
+  const resolvedConfirmLabel = confirmLabel ?? t("common.confirm");
+  const resolvedCancelLabel = cancelLabel ?? t("common.cancel");
   useEffect(() => {
     if (!open) {
       return;
@@ -43,7 +47,7 @@ export function AlertDialog({
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 px-4">
       <button
-        aria-label="关闭确认框"
+        aria-label={t("common.closeDialog")}
         className="absolute inset-0 cursor-default"
         onClick={() => onOpenChange(false)}
       />
@@ -71,7 +75,7 @@ export function AlertDialog({
             variant="ghost"
             onClick={() => onOpenChange(false)}
           >
-            {cancelLabel}
+            {resolvedCancelLabel}
           </Button>
           <Button
             type="button"
@@ -81,7 +85,7 @@ export function AlertDialog({
               onOpenChange(false);
             }}
           >
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </Button>
         </div>
       </section>

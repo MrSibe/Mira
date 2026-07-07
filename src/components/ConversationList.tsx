@@ -1,17 +1,21 @@
 import {
   Archive,
   Check,
+  ChevronRight,
   Folder,
   FolderPlus,
   MessageCirclePlus,
   MessageSquareText,
   MoreHorizontal,
+  Pencil,
   Settings,
   Trash2,
   X,
 } from "lucide-react";
 import { FormEvent, MouseEvent, useEffect, useMemo, useState } from "react";
 import type { Conversation } from "../core/types";
+import { getCurrentLocale, t } from "../i18n";
+import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { cn } from "../utils/cn";
 import { AlertDialog } from "./ui/alert-dialog";
@@ -24,19 +28,19 @@ type DeleteTarget =
   | { kind: "archive"; id: string; title: string };
 
 export function ConversationList() {
+  const t = useT();
   const conversations = useAppStore((state) => state.conversations);
   const projects = useAppStore((state) => state.projects);
-  const activeProjectId = useAppStore((state) => state.activeProjectId);
   const activeConversationId = useAppStore(
     (state) => state.activeConversationId,
   );
   const currentPage = useAppStore((state) => state.currentPage);
   const setPage = useAppStore((state) => state.setPage);
-  const setActiveProject = useAppStore((state) => state.setActiveProject);
   const selectConversation = useAppStore((state) => state.selectConversation);
   const createConversation = useAppStore((state) => state.createConversation);
   const createProject = useAppStore((state) => state.createProject);
   const deleteProject = useAppStore((state) => state.deleteProject);
+  const renameProject = useAppStore((state) => state.renameProject);
   const archiveConversation = useAppStore((state) => state.archiveConversation);
   const deleteConversation = useAppStore((state) => state.deleteConversation);
   const moveConversationToProject = useAppStore(
@@ -44,6 +48,13 @@ export function ConversationList() {
   );
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(
     null,
   );
@@ -82,6 +93,32 @@ export function ConversationList() {
     setProjectName("");
     setIsProjectDialogOpen(false);
     await createProject(trimmed);
+  }
+
+  function toggleProjectExpanded(projectId: string) {
+    setExpandedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  }
+
+  async function submitRenameProject(event: FormEvent) {
+    event.preventDefault();
+    if (!renameTarget) {
+      return;
+    }
+    const trimmed = renameTarget.name.trim();
+    if (!trimmed) {
+      return;
+    }
+    const id = renameTarget.id;
+    setRenameTarget(null);
+    await renameProject(id, trimmed);
   }
 
   function stop(event: MouseEvent) {
@@ -126,11 +163,11 @@ export function ConversationList() {
       <aside className="flex h-full min-h-0 flex-col border-r border-[var(--border)] bg-[var(--sidebar)] px-3 py-3">
         <div className="mb-2 flex items-center justify-between px-2">
           <span className="text-[13px] font-medium leading-5 text-[var(--subtle)]">
-            项目
+            {t("conversationList.projects")}
           </span>
           <button
-            aria-label="新建项目"
-            title="新建项目"
+            aria-label={t("conversationList.newProject")}
+            title={t("conversationList.newProject")}
             className="rounded p-1 text-[var(--subtle)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
             onClick={() => setIsProjectDialogOpen(true)}
           >
@@ -141,34 +178,60 @@ export function ConversationList() {
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="space-y-2">
             {conversationsByProject.map(({ project, conversations }) => {
-              const isProjectActive =
-                activeProjectId === project.id &&
-                !conversations.some((c) => c.id === activeConversationId);
+              const isExpanded = expandedProjectIds.has(project.id);
               return (
                 <section key={project.id}>
                   <div
                     className={cn(
-                      "group relative flex h-8 items-center gap-2 rounded-md px-3 transition",
-                      isProjectActive
-                        ? "bg-[var(--active)] text-[var(--text)]"
-                        : "text-[var(--text)] hover:bg-[var(--hover)]",
+                      "group relative flex h-8 items-center gap-1 rounded-md px-2 transition",
+                      "text-[var(--text)] hover:bg-[var(--hover)]",
                     )}
                   >
                     <button
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] leading-5"
-                      onClick={() => setActiveProject(project.id)}
+                      className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px] leading-5"
+                      onClick={() => toggleProjectExpanded(project.id)}
                     >
+                      <ChevronRight
+                        className={cn(
+                          "h-3.5 w-3.5 shrink-0 text-[var(--subtle)] transition-transform",
+                          isExpanded && "rotate-90",
+                        )}
+                      />
                       <Folder className="h-4 w-4 shrink-0 text-[var(--subtle)]" />
                       <span className="truncate">{project.name}</span>
+                      {conversations.length > 0 ? (
+                        <span className="shrink-0 text-[11px] text-[var(--subtle)]">
+                          {conversations.length}
+                        </span>
+                      ) : null}
                     </button>
                     <button
-                      aria-label="项目菜单"
-                      title="项目菜单"
+                      aria-label={t(
+                        "conversationList.newConversationInProject",
+                      )}
+                      title={t("conversationList.newConversationInProject")}
+                      className={cn(
+                        "rounded p-1 text-[var(--subtle)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]",
+                        "opacity-0 group-hover:opacity-100",
+                      )}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void startConversation(project.id);
+                        setExpandedProjectIds((current) => {
+                          const next = new Set(current);
+                          next.add(project.id);
+                          return next;
+                        });
+                      }}
+                    >
+                      <MessageCirclePlus className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      aria-label={t("conversationList.projectMenu")}
+                      title={t("conversationList.projectMenu")}
                       className={cn(
                         "rounded p-1 text-[var(--subtle)] transition hover:text-[var(--text)]",
-                        isProjectActive
-                          ? "opacity-100"
-                          : "opacity-0 hover:bg-[var(--hover)] group-hover:opacity-100",
+                        "opacity-0 hover:bg-[var(--hover)] group-hover:opacity-100",
                       )}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -188,11 +251,14 @@ export function ConversationList() {
                           className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 text-[var(--text)] hover:bg-[var(--hover)]"
                           onClick={() => {
                             setOpenProjectMenuId(null);
-                            void startConversation(project.id);
+                            setRenameTarget({
+                              id: project.id,
+                              name: project.name,
+                            });
                           }}
                         >
-                          <MessageCirclePlus className="h-3.5 w-3.5" />
-                          新对话
+                          <Pencil className="h-3.5 w-3.5" />
+                          {t("conversationList.renameProject")}
                         </button>
                         <button
                           className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 text-[var(--danger)] hover:bg-[var(--hover)]"
@@ -202,46 +268,50 @@ export function ConversationList() {
                           }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                          删除项目
+                          {t("conversationList.deleteProject")}
                         </button>
                       </div>
                     ) : null}
                   </div>
 
-                  <div className="mt-1 space-y-1 pl-7">
-                    {conversations.length > 0 ? (
-                      conversations.map((conversation) => (
-                        <ConversationRow
-                          key={conversation.id}
-                          conversation={conversation}
-                          projects={projects}
-                          isActive={
-                            currentPage === "chat" &&
-                            activeConversationId === conversation.id
-                          }
-                          onOpen={() => void openConversation(conversation.id)}
-                          onArchive={(event) => {
-                            stop(event);
-                            confirmArchiveConversation(conversation);
-                          }}
-                          onDelete={(event) => {
-                            stop(event);
-                            confirmDeleteConversation(conversation);
-                          }}
-                          onMove={(projectId) =>
-                            void moveConversationToProject(
-                              conversation.id,
-                              projectId,
-                            )
-                          }
-                        />
-                      ))
-                    ) : (
-                      <div className="px-3 py-1.5 text-[13px] leading-5 text-[var(--subtle)]">
-                        暂无对话
-                      </div>
-                    )}
-                  </div>
+                  {isExpanded ? (
+                    <div className="mt-1 space-y-1 pl-7">
+                      {conversations.length > 0 ? (
+                        conversations.map((conversation) => (
+                          <ConversationRow
+                            key={conversation.id}
+                            conversation={conversation}
+                            projects={projects}
+                            isActive={
+                              currentPage === "chat" &&
+                              activeConversationId === conversation.id
+                            }
+                            onOpen={() =>
+                              void openConversation(conversation.id)
+                            }
+                            onArchive={(event) => {
+                              stop(event);
+                              confirmArchiveConversation(conversation);
+                            }}
+                            onDelete={(event) => {
+                              stop(event);
+                              confirmDeleteConversation(conversation);
+                            }}
+                            onMove={(projectId) =>
+                              void moveConversationToProject(
+                                conversation.id,
+                                projectId,
+                              )
+                            }
+                          />
+                        ))
+                      ) : (
+                        <div className="px-3 py-1.5 text-[13px] leading-5 text-[var(--subtle)]">
+                          {t("conversationList.noConversations")}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </section>
               );
             })}
@@ -250,11 +320,11 @@ export function ConversationList() {
           <section className="mt-4">
             <div className="mb-2 flex items-center justify-between px-2">
               <span className="text-[13px] font-medium leading-5 text-[var(--subtle)]">
-                对话
+                {t("conversationList.conversations")}
               </span>
               <button
-                aria-label="新建对话"
-                title="新建对话"
+                aria-label={t("conversationList.newConversation")}
+                title={t("conversationList.newConversation")}
                 className="rounded p-1 text-[var(--subtle)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
                 onClick={() => void startConversation(null)}
               >
@@ -293,8 +363,8 @@ export function ConversationList() {
 
         <div className="mt-3">
           <button
-            aria-label="设置"
-            title="设置"
+            aria-label={t("conversationList.settings")}
+            title={t("conversationList.settings")}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-md transition",
               currentPage === "settings"
@@ -316,15 +386,15 @@ export function ConversationList() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold text-[var(--text)]">
-                    新建项目
+                    {t("conversationList.newProjectDialogTitle")}
                   </h2>
                   <p className="mt-1 text-xs text-[var(--subtle)]">
-                    项目会共享内部对话上下文
+                    {t("conversationList.newProjectDialogDesc")}
                   </p>
                 </div>
                 <button
-                  aria-label="关闭"
-                  title="关闭"
+                  aria-label={t("common.close")}
+                  title={t("common.close")}
                   type="button"
                   className="rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)]"
                   onClick={() => {
@@ -337,7 +407,7 @@ export function ConversationList() {
               </div>
               <Input
                 autoFocus
-                placeholder="项目标题"
+                placeholder={t("conversationList.projectTitlePlaceholder")}
                 value={projectName}
                 onChange={(event) => setProjectName(event.currentTarget.value)}
               />
@@ -350,11 +420,64 @@ export function ConversationList() {
                     setIsProjectDialogOpen(false);
                   }}
                 >
-                  取消
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit">
                   <FolderPlus className="h-4 w-4" />
-                  创建
+                  {t("common.create")}
+                </Button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {renameTarget ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+            <form
+              className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-soft)]"
+              onSubmit={(event) => void submitRenameProject(event)}
+            >
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-[var(--text)]">
+                    {t("conversationList.renameDialogTitle")}
+                  </h2>
+                  <p className="mt-1 text-xs text-[var(--subtle)]">
+                    {t("conversationList.renameDialogDesc")}
+                  </p>
+                </div>
+                <button
+                  aria-label={t("common.close")}
+                  title={t("common.close")}
+                  type="button"
+                  className="rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)]"
+                  onClick={() => setRenameTarget(null)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <Input
+                autoFocus
+                placeholder={t("conversationList.projectTitlePlaceholder")}
+                value={renameTarget.name}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setRenameTarget((current) =>
+                    current ? { ...current, name: value } : current,
+                  );
+                }}
+              />
+              <div className="mt-4 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setRenameTarget(null)}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button type="submit" disabled={!renameTarget.name.trim()}>
+                  <Check className="h-4 w-4" />
+                  {t("conversationList.renameDialogConfirm")}
                 </Button>
               </div>
             </form>
@@ -365,19 +488,29 @@ export function ConversationList() {
         open={deleteTarget !== null}
         title={
           deleteTarget?.kind === "project"
-            ? "删除项目"
+            ? t("conversationList.confirmDeleteProjectTitle")
             : deleteTarget?.kind === "archive"
-              ? "归档对话"
-              : "删除对话"
+              ? t("conversationList.confirmArchiveTitle")
+              : t("conversationList.confirmDeleteConversationTitle")
         }
         description={
           deleteTarget?.kind === "project"
-            ? `将删除项目“${deleteTarget.title}”，项目内对话会移出项目。`
+            ? t("conversationList.confirmDeleteProjectDesc", {
+                title: deleteTarget.title,
+              })
             : deleteTarget?.kind === "archive"
-              ? `将归档对话“${deleteTarget.title}”，归档后可在设置中恢复。`
-              : `将永久删除对话“${deleteTarget?.title ?? ""}”，此操作不可撤销。`
+              ? t("conversationList.confirmArchiveDesc", {
+                  title: deleteTarget.title,
+                })
+              : t("conversationList.confirmDeleteConversationDesc", {
+                  title: deleteTarget?.title ?? "",
+                })
         }
-        confirmLabel={deleteTarget?.kind === "archive" ? "归档" : "删除"}
+        confirmLabel={
+          deleteTarget?.kind === "archive"
+            ? t("conversationList.confirmArchiveConfirm")
+            : t("conversationList.confirmDeleteConfirm")
+        }
         confirmVariant={deleteTarget?.kind === "archive" ? "default" : "danger"}
         onConfirm={runDeleteTarget}
         onOpenChange={(open) => {
@@ -407,6 +540,7 @@ function ConversationRow({
   onDelete: (event: MouseEvent) => void;
   onMove: (projectId: string | null) => void;
 }) {
+  const t = useT();
   const [projectMenu, setProjectMenu] = useState<{
     x: number;
     y: number;
@@ -466,8 +600,8 @@ function ConversationRow({
           </div>
           <div className="absolute inset-0 flex items-center justify-end gap-1 opacity-0 transition group-hover:opacity-100">
             <Button
-              aria-label="归档对话"
-              title="归档对话"
+              aria-label={t("conversationList.rowArchive")}
+              title={t("conversationList.rowArchive")}
               size="icon"
               variant="ghost"
               className="h-6 w-6 text-[var(--subtle)] hover:text-[var(--text)]"
@@ -476,8 +610,8 @@ function ConversationRow({
               <Archive className="h-3.5 w-3.5" />
             </Button>
             <Button
-              aria-label="删除对话"
-              title="删除对话"
+              aria-label={t("conversationList.rowDelete")}
+              title={t("conversationList.rowDelete")}
               size="icon"
               variant="ghost"
               className="h-6 w-6 text-[var(--subtle)] hover:text-[var(--danger)]"
@@ -497,11 +631,11 @@ function ConversationRow({
           onClick={(event) => event.stopPropagation()}
         >
           <div className="px-2 py-1.5 text-[13px] font-medium leading-5 text-[var(--subtle)]">
-            移动到项目
+            {t("conversationList.moveToProject")}
           </div>
           <ProjectMenuItem
             active={!conversation.project_id}
-            label="无项目"
+            label={t("conversationList.noProject")}
             onSelect={() => {
               onMove(null);
               setProjectMenu(null);
@@ -557,22 +691,22 @@ function formatRecentTime(value: string): string {
   }
   const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   if (diffSeconds < 60) {
-    return "刚刚";
+    return t("time.justNow");
   }
   const diffMinutes = Math.floor(diffSeconds / 60);
   if (diffMinutes < 60) {
-    return `${diffMinutes} 分钟前`;
+    return t("time.minutesAgo", { n: diffMinutes });
   }
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) {
-    return `${diffHours} 小时前`;
+    return t("time.hoursAgo", { n: diffHours });
   }
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) {
-    return `${diffDays} 天前`;
+    return t("time.daysAgo", { n: diffDays });
   }
-  return new Date(value).toLocaleDateString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-  });
+  return new Date(value).toLocaleDateString(
+    getCurrentLocale() === "zh" ? "zh-CN" : "en-US",
+    { month: "2-digit", day: "2-digit" },
+  );
 }

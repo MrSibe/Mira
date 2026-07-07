@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   ChatMessage,
   Conversation,
+  Locale,
   Memory,
   MemoryPatch,
   MessageStreamDelta,
@@ -14,6 +15,7 @@ import type {
   ThemeMode,
 } from "../core/types";
 import { tauriClient } from "../core/tauriClient";
+import { readStoredLocale, setCurrentLocale, storeLocale, t } from "../i18n";
 import { fallbackMessage } from "./fallbackMessage";
 import {
   applyThemeMode,
@@ -38,15 +40,18 @@ export interface AppState {
   isSending: boolean;
   error: string | null;
   themeMode: ThemeMode;
+  locale: Locale;
   isSidebarCollapsed: boolean;
   setPage: (page: Page) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
+  setLocale: (locale: Locale) => void;
   toggleSidebar: () => void;
   setActiveProject: (projectId: string | null) => void;
   bootstrap: () => Promise<void>;
   createConversation: (projectId?: string | null) => Promise<void>;
   createProject: (name: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
+  renameProject: (projectId: string, name: string) => Promise<void>;
   selectConversation: (conversationId: string) => Promise<void>;
   archiveConversation: (conversationId: string) => Promise<void>;
   restoreConversation: (conversationId: string) => Promise<void>;
@@ -64,6 +69,7 @@ export interface AppState {
   deleteMemory: (id: number) => Promise<void>;
   runMemoryCleanup: () => Promise<void>;
   saveModelConfig: (config: ModelConfig) => Promise<void>;
+  deleteModelConfig: (id: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -81,6 +87,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isSending: false,
   error: null,
   themeMode: readStoredThemeMode(),
+  locale: readStoredLocale(),
   isSidebarCollapsed: false,
   setPage: (page) =>
     set((state) => {
@@ -106,6 +113,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     storeThemeMode(themeMode);
     applyThemeMode(themeMode);
     set({ themeMode });
+  },
+  setLocale: (locale) => {
+    storeLocale(locale);
+    setCurrentLocale(locale);
+    set({ locale });
   },
   toggleSidebar: () =>
     set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
@@ -159,11 +171,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (error) {
       set({
         error: String(error),
-        messages: [
-          fallbackMessage(
-            "后端还没有准备好。请确认 Tauri dev server 正在运行，SQLite 初始化完成。",
-          ),
-        ],
+        messages: [fallbackMessage(t("errors.backendNotReady"))],
       });
     }
   },
@@ -193,15 +201,39 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   deleteProject: async (projectId) => {
     await tauriClient.deleteProject(projectId);
+    set((state) => {
+      const removedIds = new Set(
+        state.conversations
+          .filter((c) => c.project_id === projectId)
+          .map((c) => c.id),
+      );
+      const archivedRemovedIds = new Set(
+        state.archivedConversations
+          .filter((c) => c.project_id === projectId)
+          .map((c) => c.id),
+      );
+      const activeConversationRemoved = removedIds.has(
+        state.activeConversationId ?? "",
+      );
+      return {
+        projects: state.projects.filter((p) => p.id !== projectId),
+        conversations: state.conversations.filter((c) => !removedIds.has(c.id)),
+        archivedConversations: state.archivedConversations.filter(
+          (c) => !archivedRemovedIds.has(c.id),
+        ),
+        activeProjectId:
+          state.activeProjectId === projectId ? null : state.activeProjectId,
+        activeConversationId: activeConversationRemoved
+          ? null
+          : state.activeConversationId,
+        messages: activeConversationRemoved ? [] : state.messages,
+      };
+    });
+  },
+  renameProject: async (projectId, name) => {
+    const project = await tauriClient.renameProject(projectId, name);
     set((state) => ({
-      projects: state.projects.filter((project) => project.id !== projectId),
-      conversations: state.conversations.map((conversation) =>
-        conversation.project_id === projectId
-          ? { ...conversation, project_id: null }
-          : conversation,
-      ),
-      activeProjectId:
-        state.activeProjectId === projectId ? null : state.activeProjectId,
+      projects: state.projects.map((p) => (p.id === projectId ? project : p)),
     }));
   },
   selectConversation: async (conversationId) => {
@@ -484,7 +516,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           ...get().messages.filter(
             (message) => !message.id.startsWith("streaming-"),
           ),
-          fallbackMessage(`发送失败：${String(error)}`),
+          fallbackMessage(t("errors.sendFailed", { error: String(error) })),
         ],
       });
     }
@@ -557,11 +589,41 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
     }));
   },
+  deleteModelConfig: async (id) => {
+    await tauriClient.deleteModelConfig(id);
+    set((state) => {
+      const modelConfigs = state.modelConfigs.filter(
+        (config) => config.id !== id,
+      );
+      const wasActive = state.activeModelConfigId === id;
+      const fallback =
+        modelConfigs.find((config) => config.is_default)?.id ??
+        modelConfigs[0]?.id ??
+        null;
+      const activeModelConfigId = wasActive
+        ? fallback
+        : state.activeModelConfigId;
+      const modelSettings = state.modelSettings
+        ? {
+            ...state.modelSettings,
+            chat_model_config_id:
+              state.modelSettings.chat_model_config_id === id
+                ? fallback
+                : state.modelSettings.chat_model_config_id,
+            background_model_config_id:
+              state.modelSettings.background_model_config_id === id
+                ? fallback
+                : state.modelSettings.background_model_config_id,
+          }
+        : state.modelSettings;
+      return { modelConfigs, activeModelConfigId, modelSettings };
+    });
+  },
 }));
 
 function titleFromContent(content: string): string {
   const title = Array.from(content.trim()).slice(0, 24).join("");
-  return title || "新对话";
+  return title || t("newConversationTitle");
 }
 
 const DRAFT_PREFIX = "draft-";
@@ -576,7 +638,7 @@ function createDraftConversation(projectId: string | null): Conversation {
   const now = new Date().toISOString();
   return {
     id: `${DRAFT_PREFIX}${crypto.randomUUID()}`,
-    title: "新对话",
+    title: t("newConversationTitle"),
     project_id: projectId,
     is_archived: false,
     created_at: now,
