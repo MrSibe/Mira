@@ -31,24 +31,34 @@
 - **本地存储** — 所有数据存在本地 SQLite，不上传任何服务器
 - **中英双语** — 界面支持中英文切换，默认英文
 
+## 截图
+
+![Mira 聊天界面](screenshots/chat.png)
+
 ## 快速开始
 
-### 环境要求
+### 下载安装
 
-- [Node.js](https://nodejs.org/) 22+
-- [pnpm](https://pnpm.io/) 11+
-- [Rust](https://www.rust-lang.org/) stable（含 `cargo`）
+前往 [Releases 页面](https://github.com/MrSibe/Mira/releases) 下载对应平台的安装包：
 
-### 运行
+| 平台                       | 文件                                                           |
+| -------------------------- | -------------------------------------------------------------- |
+| **Windows**                | `Mira_<版本>_x64-setup.msi.zip` 或 `Mira_<版本>_x64_en-US.msi` |
+| **macOS（Intel）**         | `Mira_<版本>_x64.dmg`                                          |
+| **macOS（Apple Silicon）** | `Mira_<版本>_aarch64.dmg`                                      |
+| **Linux**                  | `Mira_<版本>_amd64.deb` 或 `Mira_<版本>_amd64.AppImage`        |
+
+下载后直接安装即可使用，**无需任何开发环境**。
+
+> 首次打开 Mira 时会提示配置 API Provider。  
+> 你需要一个 **OpenAI-compatible 的 API Key** 才能开始聊天——可以是 OpenAI、DeepSeek 或其他兼容服务商。
+
+### 自行构建
+
+如果你希望从源码构建（需要 [Node.js](https://nodejs.org/) 22+、[pnpm](https://pnpm.io/) 11+、[Rust](https://www.rust-lang.org/) stable）：
 
 ```bash
 pnpm install
-pnpm tauri dev
-```
-
-### 构建
-
-```bash
 pnpm tauri build
 ```
 

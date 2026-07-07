@@ -31,24 +31,35 @@ If you also want a chat app that remembers what you said and belongs to you, for
 - **Local storage** — All data stays in a local SQLite file. Nothing leaves your machine
 - **i18n** — English / Chinese UI, English by default
 
+## Screenshot
+
+![Mira chat interface](screenshots/chat.png)
+
 ## Quick Start
 
-### Prerequisites
+### Download
 
-- [Node.js](https://nodejs.org/) 22+
-- [pnpm](https://pnpm.io/) 11+
-- [Rust](https://www.rust-lang.org/) stable (with `cargo`)
+Head to the [Releases](https://github.com/MrSibe/Mira/releases) page and download the installer for your platform:
 
-### Run
+| Platform                  | File                                                                 |
+| ------------------------- | -------------------------------------------------------------------- |
+| **Windows**               | `Mira_<version>_x64-setup.msi.zip` or `Mira_<version>_x64_en-US.msi` |
+| **macOS (Intel)**         | `Mira_<version>_x64.dmg`                                             |
+| **macOS (Apple Silicon)** | `Mira_<version>_aarch64.dmg`                                         |
+| **Linux**                 | `Mira_<version>_amd64.deb` or `Mira_<version>_amd64.AppImage`        |
+
+Run the installer and launch Mira.  
+No command line or development tools required.
+
+> The first time you open Mira, it will prompt you to configure an API provider.  
+> You need an **OpenAI-compatible API key** to start chatting — bring your own key from OpenAI, DeepSeek, or any other compatible provider.
+
+### Build from source
+
+If you want to build Mira yourself (requires [Node.js](https://nodejs.org/) 22+, [pnpm](https://pnpm.io/) 11+, [Rust](https://www.rust-lang.org/) stable):
 
 ```bash
 pnpm install
-pnpm tauri dev
-```
-
-### Build
-
-```bash
 pnpm tauri build
 ```
 
