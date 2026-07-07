@@ -35,6 +35,8 @@ async function sendToLlm(
   content: string,
   conversationProjectId: string | null,
   userMessageId: string,
+  withSearch?: boolean,
+  userDisplayContent?: string,
 ) {
   const requestId = crypto.randomUUID();
   const optimisticAssistantMessage: ChatMessage = {
@@ -82,6 +84,7 @@ async function sendToLlm(
       get().activeModelConfigId,
       conversationProjectId,
       requestId,
+      withSearch,
     );
     set((current) => ({
       activeConversationId: result.conversation.id,
@@ -100,7 +103,11 @@ async function sendToLlm(
           ? [
               ...current.messages.map((message) =>
                 message.id === userMessageId
-                  ? result.user_message
+                  ? {
+                      ...result.user_message,
+                      content:
+                        userDisplayContent ?? result.user_message.content,
+                    }
                   : message.id === optimisticAssistantMessage.id
                     ? result.assistant_message
                     : message,
@@ -537,7 +544,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         created_at: new Date().toISOString(),
       };
 
-      // Search flow: show searching → results → then send to LLM
+      // Search flow: show searching → results capsules → send original question with withSearch
       if (withSearch) {
         const searchId = `search-${crypto.randomUUID()}`;
         const searchingMessage: ChatMessage = {
@@ -557,28 +564,14 @@ export const useAppStore = create<AppState>((set, get) => ({
               : current.messages,
         }));
 
-        let searchPrefix = "";
+        // Parallel search for UI capsules
         try {
           const results = await tauriClient.searchWeb(trimmed);
           if (results.length > 0) {
-            const formatted = results
-              .map(
-                (r, i) => `[${i + 1}] ${r.title}\nURL: ${r.url}\n${r.content}`,
-              )
-              .join("\n\n");
-            searchPrefix =
-              "I searched the web and found these results:\n\n" +
-              formatted +
-              "\n\n---\nUse [1], [2], etc. to cite sources when answering. Only cite sources if they are actually relevant to the answer.";
-
             set((current) => ({
               messages: current.messages.map((msg) =>
                 msg.id === searchId
-                  ? {
-                      ...msg,
-                      content: "",
-                      search_results: results,
-                    }
+                  ? { ...msg, content: "", search_results: results }
                   : msg,
               ),
               activeSearchResults: results,
@@ -594,18 +587,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           }));
         }
 
-        // Send to LLM with search context
-        const textToSend = searchPrefix
-          ? searchPrefix + "\nUser question: " + trimmed
-          : trimmed;
-
+        // Send original question to backend — backend handles tool call loop
         await sendToLlm(
           set,
           get,
           conversationId,
-          textToSend,
+          trimmed,
           conversationProjectId,
           optimisticUserMessage.id,
+          true,
+          trimmed,
         );
         return;
       }

@@ -15,9 +15,49 @@ struct ChatCompletionRequest {
     messages: Vec<OpenAiMessage>,
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<ToolDefinition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     thinking: Option<DeepSeekThinking>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reasoning_effort: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ToolDefinition {
+    #[serde(rename = "type")]
+    tool_type: String,
+    function: ToolFunction,
+}
+
+#[derive(Debug, Serialize)]
+struct ToolFunction {
+    name: String,
+    description: String,
+    parameters: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OpenAiMessage {
+    pub role: String,
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<OpenAiToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenAiToolCall {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub call_type: String,
+    pub function: ToolCallFunction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallFunction {
+    pub name: String,
+    pub arguments: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -26,15 +66,28 @@ struct DeepSeekThinking {
     thinking_type: String,
 }
 
-#[derive(Debug, Serialize)]
-struct OpenAiMessage {
-    role: String,
-    content: String,
-}
-
 #[derive(Debug, Deserialize)]
 struct ChatCompletionStreamChunk {
     choices: Vec<StreamChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChatCompletionResponse {
+    pub choices: Vec<ResponseChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResponseChoice {
+    pub message: ResponseMessage,
+    #[allow(dead_code)]
+    pub finish_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResponseMessage {
+    #[allow(dead_code)]
+    pub content: Option<String>,
+    pub tool_calls: Option<Vec<OpenAiToolCall>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,12 +102,67 @@ struct StreamDelta {
     reasoning_content: Option<String>,
 }
 
+fn web_search_tool() -> ToolDefinition {
+    ToolDefinition {
+        tool_type: "function".to_string(),
+        function: ToolFunction {
+            name: "web_search".to_string(),
+            description: "Search the web for current information. Useful for news, real-time data, or topics you are not confident about.".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query to look up"
+                    }
+                },
+                "required": ["query"]
+            }),
+        },
+    }
+}
+
+/// Non-streaming completion — used for the initial tool-call round.
+pub async fn complete_chat_non_streaming(
+    config: &ModelConfig,
+    api_key: &str,
+    messages: &[OpenAiMessage],
+    with_search: bool,
+) -> Result<ChatCompletionResponse, String> {
+    let endpoint = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
+    let mut request = ChatCompletionRequest {
+        model: config.model.clone(),
+        messages: messages.to_vec(),
+        stream: false,
+        tools: if with_search { Some(vec![web_search_tool()]) } else { None },
+        thinking: None,
+        reasoning_effort: None,
+    };
+    if config.provider.eq_ignore_ascii_case("deepseek") || config.base_url.contains("api.deepseek.com") {
+        let is_reasoning = config.model.contains("reasoner");
+        if is_reasoning {
+            request.thinking = Some(DeepSeekThinking { thinking_type: "enabled".to_string() });
+        } else {
+            request.reasoning_effort = Some("medium".to_string());
+        }
+    }
+    let client = Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .build()
+        .map_err(|error| format!("客户端初始化失败: {error}"))?;
+    let response = send_chat_completion_request(&client, &endpoint, api_key, &request).await?;
+    let body = response.json::<ChatCompletionResponse>().await
+        .map_err(|error| format!("解析非流式响应失败: {error}"))?;
+    Ok(body)
+}
+
 pub async fn complete_chat_streaming<F>(
     config: &ModelConfig,
     history: &[ChatMessage],
     project_context: &[ChatMessage],
     injected_memories: &[Memory],
     user_content: &str,
+    tool_messages: Vec<OpenAiMessage>,
     mut on_delta: F,
 ) -> Result<String, String>
 where
@@ -66,7 +174,8 @@ where
         .filter(|value| !value.trim().is_empty() && value != "******")
         .ok_or_else(|| format!("模型配置 {} 缺少 API Key", config.name))?;
     let endpoint = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
-    let messages = build_messages(history, project_context, injected_memories, user_content);
+    let mut messages = build_messages(history, project_context, injected_memories, user_content);
+    messages.extend(tool_messages);
     let request = build_request(config, messages);
     let client = Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)
@@ -244,6 +353,7 @@ fn build_request(config: &ModelConfig, messages: Vec<OpenAiMessage>) -> ChatComp
             model: config.model.clone(),
             messages,
             stream: true,
+            tools: None,
             thinking: Some(DeepSeekThinking {
                 thinking_type: "enabled".to_string(),
             }),
@@ -255,6 +365,7 @@ fn build_request(config: &ModelConfig, messages: Vec<OpenAiMessage>) -> ChatComp
         model: config.model.clone(),
         messages,
         stream: true,
+        tools: None,
         thinking: None,
         reasoning_effort: None,
     }
@@ -305,23 +416,29 @@ fn build_messages(
     };
     let mut messages = vec![OpenAiMessage {
         role: "system".to_string(),
-        content: format!(
+        content: Some(format!(
             "你是 Mira，一个本地个人 AI 记忆客户端。请自然使用长期记忆和项目上下文，但不要逐条暴露。\n\n长期记忆：\n{}\n\n同项目其他对话上下文：\n{}",
             memory_block, project_block
-        ),
+        )),
+        tool_calls: None,
+        tool_call_id: None,
     }];
 
     for message in history.iter().rev().take(20).rev() {
         if message.role == "user" || message.role == "assistant" {
             messages.push(OpenAiMessage {
                 role: message.role.clone(),
-                content: message.content.clone(),
+                content: Some(message.content.clone()),
+                tool_calls: None,
+                tool_call_id: None,
             });
         }
     }
     messages.push(OpenAiMessage {
         role: "user".to_string(),
-        content: user_content.to_string(),
+        content: Some(user_content.to_string()),
+        tool_calls: None,
+        tool_call_id: None,
     });
     messages
 }
@@ -333,6 +450,75 @@ fn compact(content: &str, max_chars: usize) -> String {
         compacted.push_str("...");
     }
     compacted
+}
+
+/// Build the initial message list for the search tool-call round.
+pub fn build_messages_for_search(
+    history: &[ChatMessage],
+    project_context: &[ChatMessage],
+    injected_memories: &[Memory],
+    user_content: &str,
+) -> Vec<OpenAiMessage> {
+    let memory_block = if injected_memories.is_empty() {
+        "暂无长期记忆。".to_string()
+    } else {
+        injected_memories
+            .iter()
+            .map(|memory| format!("- {}", memory.fact))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let project_block = if project_context.is_empty() {
+        "当前会话不在项目中，或项目内暂无其他对话上下文。".to_string()
+    } else {
+        project_context
+            .iter()
+            .map(|message| {
+                let role = if message.role == "user" { "用户" } else { "助手" };
+                format!("- {role}: {}", compact(&message.content, 180))
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let mut messages = vec![OpenAiMessage {
+        role: "system".to_string(),
+        content: Some(format!(
+            "你是 Mira，一个本地个人 AI 记忆客户端。\n\n长期记忆：\n{}\n\n同项目其他对话上下文：\n{}",
+            memory_block, project_block
+        )),
+        tool_calls: None,
+        tool_call_id: None,
+    }];
+    for message in history.iter().rev().take(20).rev() {
+        if message.role == "user" || message.role == "assistant" {
+            messages.push(OpenAiMessage {
+                role: message.role.clone(),
+                content: Some(message.content.clone()),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+    }
+    messages.push(OpenAiMessage {
+        role: "user".to_string(),
+        content: Some(user_content.to_string()),
+        tool_calls: None,
+        tool_call_id: None,
+    });
+    messages
+}
+
+pub fn openai_message(
+    role: &str,
+    content: Option<String>,
+    tool_calls: Option<Vec<OpenAiToolCall>>,
+) -> OpenAiMessage {
+    OpenAiMessage {
+        role: role.to_string(),
+        content,
+        tool_calls,
+        tool_call_id: None,
+    }
 }
 
 #[cfg(test)]

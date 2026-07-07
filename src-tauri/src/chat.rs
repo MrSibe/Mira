@@ -155,6 +155,7 @@ pub async fn send_message(
     model_config_id: Option<String>,
     project_id: Option<String>,
     request_id: Option<String>,
+    with_search: Option<bool>,
 ) -> Result<SendMessageResult, String> {
     let trimmed = content.trim().to_string();
     if trimmed.is_empty() {
@@ -212,12 +213,82 @@ pub async fn send_message(
 
     let stream_conversation_id = conversation.id.clone();
     let stream_request_id = request_id.clone();
+
+    let tool_messages = if with_search.unwrap_or(false) {
+        // Phase 1: non-streaming request with tool definition
+        let api_key = model_config
+            .api_key
+            .clone()
+            .filter(|v| !v.trim().is_empty() && v != "******")
+            .ok_or_else(|| format!("模型配置 {} 缺少 API Key", model_config.name))?;
+
+        let mut msgs = model::build_messages_for_search(
+            &history,
+            &project_context,
+            &injected_memories,
+            &trimmed,
+        );
+
+        let initial = model::complete_chat_non_streaming(
+            &model_config,
+            &api_key,
+            &msgs,
+            true,
+        )
+        .await?;
+
+        if let Some(tool_calls) = initial.choices.first().and_then(|c| c.message.tool_calls.as_ref()) {
+            if let Some(tool) = tool_calls.first() {
+                if tool.function.name == "web_search" {
+                    // Parse the search query from the tool call arguments
+                    let args: serde_json::Value = serde_json::from_str(&tool.function.arguments)
+                        .map_err(|e| format!("无法解析搜索参数: {e}"))?;
+                    let query = args["query"].as_str()
+                        .ok_or_else(|| "搜索参数中缺少 query 字段".to_string())?;
+
+                    // Call Tavily
+                    let tavily_key = secrets::load_tavily_api_key()?
+                        .ok_or_else(|| "Tavily API Key 未配置".to_string())?;
+                    let search_results = web_search::search_web(query, &tavily_key).await?;
+
+                    let results_text = if search_results.is_empty() {
+                        "No results found.".to_string()
+                    } else {
+                        search_results.iter().enumerate()
+                            .map(|(i, r)| {
+                                format!("[{}] {} | {}\n{}", i + 1, r.title, r.url, r.content)
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n\n")
+                    };
+
+                    // Add assistant tool call message + tool result message
+                    msgs.push(model::openai_message("assistant", None, Some(vec![
+                        model::OpenAiToolCall {
+                            id: tool.id.clone(),
+                            call_type: "function".to_string(),
+                            function: model::ToolCallFunction {
+                                name: tool.function.name.clone(),
+                                arguments: tool.function.arguments.clone(),
+                            },
+                        }
+                    ])));
+                    msgs.push(model::openai_message("tool", Some(results_text), None));
+                }
+            }
+        }
+        msgs
+    } else {
+        Vec::new()
+    };
+
     let assistant_content = model::complete_chat_streaming(
         &model_config,
         &history,
         &project_context,
         &injected_memories,
         &trimmed,
+        tool_messages,
         |delta| {
             window
                 .emit(

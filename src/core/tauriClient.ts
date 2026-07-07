@@ -46,6 +46,7 @@ export const tauriClient = {
     modelConfigId: string | null,
     projectId: string | null,
     requestId: string,
+    withSearch?: boolean,
   ) =>
     invoke<SendMessageResult>("send_message", {
       conversationId,
@@ -53,6 +54,7 @@ export const tauriClient = {
       modelConfigId,
       projectId,
       requestId,
+      withSearch,
     }),
   listModelConfigs: () => invoke<ModelConfig[]>("list_model_configs"),
   saveModelConfig: (config: ModelConfig) =>
@@ -70,8 +72,7 @@ export const tauriClient = {
     invoke<Memory>("create_saved_memory", { fact }),
   deleteMemory: (id: number) => invoke<void>("delete_memory", { id }),
   runMemoryCleanup: () => invoke<number>("run_memory_cleanup"),
-  searchWeb: (query: string) =>
-    invoke<SearchResult[]>("search_web", { query }),
+  searchWeb: (query: string) => invoke<SearchResult[]>("search_web", { query }),
   getTavilyConfig: () => invoke<TavilyConfig>("get_tavily_config"),
   saveTavilyConfig: (enabled: boolean, apiKey?: string | null) =>
     invoke<TavilyConfig>("save_tavily_config", { enabled, apiKey }),
