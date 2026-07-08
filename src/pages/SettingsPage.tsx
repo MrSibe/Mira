@@ -628,8 +628,6 @@ function renderProviders({
       ? [draft, ...configs]
       : configs;
 
-  const keyStored = draft?.credential_status === "stored";
-
   return (
     <div className="grid h-full min-h-0 grid-cols-[250px_minmax(0,1fr)]">
       <aside className="min-h-0 border-r border-[var(--border)] bg-[var(--panel)] px-3 py-4">
@@ -724,21 +722,12 @@ function renderProviders({
               />
             </label>
             <div className="block text-sm font-medium">
-              <span className="mb-2 flex items-center gap-2">
-                {t("settings.providers.apiKey")}
-                {keyStored ? (
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                ) : null}
-              </span>
-              <div className="relative">
+              {t("settings.providers.apiKey")}
+              <div className="relative mt-2">
                 <Input
                   className="pr-9"
                   type={showProviderKey ? "text" : "password"}
-                  placeholder={
-                    keyStored
-                      ? t("settings.providers.apiKeyPlaceholderSaved")
-                      : t("settings.providers.apiKeyPlaceholderEmpty")
-                  }
+                  placeholder={t("settings.providers.apiKeyPlaceholderEmpty")}
                   value={
                     draft.api_key === "******" ? "" : (draft.api_key ?? "")
                   }
@@ -758,12 +747,6 @@ function renderProviders({
                   )}
                 </button>
               </div>
-              <span className="mt-2 block text-xs text-[var(--subtle)]">
-                {credentialStatusText(draft, t)}
-              </span>
-              <span className="mt-1 block text-xs text-[var(--subtle)]">
-                {t("settings.providers.apiKeyVaultHint")}
-              </span>
             </div>
 
             {providerError ? (
@@ -950,23 +933,6 @@ function renderModels({
       </div>
     </div>
   );
-}
-
-function credentialStatusText(
-  config: ModelConfig,
-  t: ReturnType<typeof useT>,
-): string {
-  if (config.credential_status === "stored") {
-    return t("settings.providers.credentialStored");
-  }
-  if (config.credential_status === "error") {
-    return t("settings.providers.credentialError", {
-      error:
-        config.credential_error ??
-        t("settings.providers.credentialErrorUnknown"),
-    });
-  }
-  return t("settings.providers.credentialMissing");
 }
 
 function memoryTypeLabel(memory: Memory, t: ReturnType<typeof useT>): string {
