@@ -117,7 +117,6 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<ModelConfig | null>(selected ?? null);
   const isDraftNew = !modelConfigs.some((config) => config.id === draftId);
   const [showSavedHint, setShowSavedHint] = useState(false);
-  const [isChangingKey, setIsChangingKey] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
   const [newMemoryFact, setNewMemoryFact] = useState("");
   const [isAddMemoryOpen, setIsAddMemoryOpen] = useState(false);
@@ -213,7 +212,6 @@ export function SettingsPage() {
   }, [selected]);
 
   useEffect(() => {
-    setIsChangingKey(false);
     setProviderError(null);
     setShowSavedHint(false);
   }, [draftId]);
@@ -279,7 +277,6 @@ export function SettingsPage() {
     try {
       await saveModelConfig(toSave);
       setShowSavedHint(true);
-      setIsChangingKey(false);
       window.setTimeout(() => setShowSavedHint(false), 2000);
     } catch (error) {
       setProviderError(String(error));
@@ -429,8 +426,6 @@ export function SettingsPage() {
                 updateDraft,
                 isDraftNew,
                 showSavedHint,
-                isChangingKey,
-                setIsChangingKey,
                 showProviderKey,
                 setShowProviderKey,
                 providerError,
@@ -490,17 +485,18 @@ export function SettingsPage() {
               }}
             />
           ) : null}
-          {section === "search"
-            ? renderSearch(t, {
-                tavilyConfig,
-                isSearchEnabled,
-                searchApiKey,
-                searchProvider,
-                setSearchApiKey,
-                setSearchProvider,
-                handleSaveSearch,
-              })
-            : null}
+          {section === "search" ? (
+            <SearchSection
+              t={t}
+              tavilyConfig={tavilyConfig}
+              isSearchEnabled={isSearchEnabled}
+              searchApiKey={searchApiKey}
+              searchProvider={searchProvider}
+              setSearchApiKey={setSearchApiKey}
+              setSearchProvider={setSearchProvider}
+              handleSaveSearch={handleSaveSearch}
+            />
+          ) : null}
         </section>
       </main>
       <AlertDialog
@@ -642,28 +638,26 @@ function renderAppearance(
   );
 }
 
-function renderSearch(
-  t: ReturnType<typeof useT>,
-  props: {
-    tavilyConfig: TavilyConfig | null;
-    isSearchEnabled: boolean;
-    searchApiKey: string;
-    searchProvider: "none" | "tavily";
-    setSearchApiKey: (v: string) => void;
-    setSearchProvider: (v: "none" | "tavily") => void;
-    handleSaveSearch: () => Promise<void>;
-  },
-) {
-  const {
-    tavilyConfig,
-    searchApiKey,
-    searchProvider,
-    setSearchApiKey,
-    setSearchProvider,
-    handleSaveSearch,
-  } = props;
-  const keyStored = tavilyConfig?.credential_status === "stored";
+function SearchSection({
+  t,
+  tavilyConfig,
+  searchApiKey,
+  searchProvider,
+  setSearchApiKey,
+  setSearchProvider,
+  handleSaveSearch,
+}: {
+  t: ReturnType<typeof useT>;
+  tavilyConfig: TavilyConfig | null;
+  isSearchEnabled: boolean;
+  searchApiKey: string;
+  searchProvider: "none" | "tavily";
+  setSearchApiKey: (v: string) => void;
+  setSearchProvider: (v: "none" | "tavily") => void;
+  handleSaveSearch: () => Promise<void>;
+}) {
   const [showKey, setShowKey] = useState(false);
+  const keyStored = tavilyConfig?.credential_status === "stored";
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
@@ -750,8 +744,6 @@ function renderProviders({
   updateDraft,
   isDraftNew,
   showSavedHint,
-  isChangingKey,
-  setIsChangingKey,
   showProviderKey,
   setShowProviderKey,
   providerError,
@@ -768,8 +760,6 @@ function renderProviders({
   updateDraft: (patch: Partial<ModelConfig>) => void;
   isDraftNew: boolean;
   showSavedHint: boolean;
-  isChangingKey: boolean;
-  setIsChangingKey: (value: boolean) => void;
   showProviderKey: boolean;
   setShowProviderKey: React.Dispatch<React.SetStateAction<boolean>>;
   providerError: string | null;
@@ -784,7 +774,6 @@ function renderProviders({
       : configs;
 
   const keyStored = draft?.credential_status === "stored";
-  const showKeyInput = isDraftNew || !keyStored || isChangingKey;
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[250px_minmax(0,1fr)]">
@@ -880,88 +869,46 @@ function renderProviders({
               />
             </label>
             <div className="block text-sm font-medium">
-              <span className="flex items-center gap-2">
+              <span className="mb-2 flex items-center gap-2">
                 {t("settings.providers.apiKey")}
-                {keyStored && !isDraftNew && !isChangingKey ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-green-500" />
-                    <span className="text-xs text-[var(--subtle)]">
-                      {t("settings.providers.apiKeySaved")}
-                    </span>
-                  </span>
+                {keyStored ? (
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
                 ) : null}
               </span>
-              {showKeyInput ? (
-                <>
-                  <div className="relative">
-                    <Input
-                      className="pr-9"
-                      type={showProviderKey ? "text" : "password"}
-                      placeholder={
-                        keyStored
-                          ? t("settings.providers.apiKeyPlaceholderSaved")
-                          : t("settings.providers.apiKeyPlaceholderEmpty")
-                      }
-                      value={
-                        draft.api_key === "******" ? "" : (draft.api_key ?? "")
-                      }
-                      onChange={(event) =>
-                        updateDraft({
-                          api_key: event.currentTarget.value || null,
-                        })
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
-                      onClick={() => setShowProviderKey(!showProviderKey)}
-                    >
-                      {showProviderKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                  <span className="mt-2 block text-xs text-[var(--subtle)]">
-                    {t("settings.providers.apiKeyVaultHint")}
-                  </span>
-                  {!isDraftNew ? (
-                    <span className="mt-1 block text-xs text-[var(--subtle)]">
-                      {credentialStatusText(draft, t)}
-                    </span>
-                  ) : null}
-                </>
-              ) : (
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text)]">
-                    <span className="h-2 w-2 rounded-full bg-green-500" />
-                    {t("settings.providers.apiKeySaved")}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIsChangingKey(true);
-                      updateDraft({ api_key: "" });
-                    }}
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    {t("settings.providers.changeKey")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-[var(--danger)]"
-                    onClick={() => updateDraft({ api_key: "" })}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    {t("settings.providers.removeKey")}
-                  </Button>
-                </div>
-              )}
+              <div className="relative">
+                <Input
+                  className="pr-9"
+                  type={showProviderKey ? "text" : "password"}
+                  placeholder={
+                    keyStored
+                      ? t("settings.providers.apiKeyPlaceholderSaved")
+                      : t("settings.providers.apiKeyPlaceholderEmpty")
+                  }
+                  value={
+                    draft.api_key === "******" ? "" : (draft.api_key ?? "")
+                  }
+                  onChange={(event) =>
+                    updateDraft({ api_key: event.currentTarget.value || null })
+                  }
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+                  onClick={() => setShowProviderKey(!showProviderKey)}
+                >
+                  {showProviderKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              <span className="mt-2 block text-xs text-[var(--subtle)]">
+                {credentialStatusText(draft, t)}
+              </span>
+              <span className="mt-1 block text-xs text-[var(--subtle)]">
+                {t("settings.providers.apiKeyVaultHint")}
+              </span>
             </div>
 
             {providerError ? (
