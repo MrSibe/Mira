@@ -40,6 +40,7 @@ import type {
   ModelSettings,
   ThemeMode,
 } from "../core/types";
+import { tauriClient } from "../core/tauriClient";
 import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { cn } from "../utils/cn";
@@ -729,8 +730,8 @@ function renderProviders({
                   type={showProviderKey ? "text" : "password"}
                   placeholder={t("settings.providers.apiKeyPlaceholderEmpty")}
                   value={
-                    draft.credential_status === "stored"
-                      ? "*".repeat(32)
+                    draft.credential_status === "stored" && !showProviderKey
+                      ? "******"
                       : (draft.api_key ?? "")
                   }
                   onChange={(event) =>
@@ -740,7 +741,22 @@ function renderProviders({
                 <button
                   type="button"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
-                  onClick={() => setShowProviderKey(!showProviderKey)}
+                  onClick={async () => {
+                    if (
+                      !showProviderKey &&
+                      draft?.credential_status === "stored"
+                    ) {
+                      try {
+                        const realKey = await tauriClient.getModelApiKey(
+                          draft.id,
+                        );
+                        if (realKey) updateDraft({ api_key: realKey });
+                      } catch {
+                        // fallback to masked
+                      }
+                    }
+                    setShowProviderKey(!showProviderKey);
+                  }}
                 >
                   {showProviderKey ? (
                     <EyeOff className="h-4 w-4" />

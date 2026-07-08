@@ -57,6 +57,8 @@ export const tauriClient = {
     invoke<ModelConfig>("save_model_config", { config }),
   deleteModelConfig: (id: string) =>
     invoke<void>("delete_model_config", { id }),
+  getModelApiKey: (id: string) =>
+    invoke<string | null>("get_model_api_key", { id }),
   getModelSettings: () => invoke<ModelSettings>("get_model_settings"),
   saveModelSettings: (settings: ModelSettings) =>
     invoke<ModelSettings>("save_model_settings", { settings }),

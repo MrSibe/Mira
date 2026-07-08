@@ -37,6 +37,7 @@ pub fn run() {
             chat::list_model_configs,
             chat::save_model_config,
             chat::delete_model_config,
+            chat::get_model_api_key,
             chat::get_model_settings,
             chat::save_model_settings,
             chat::list_memories,

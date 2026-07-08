@@ -334,6 +334,16 @@ pub fn delete_model_config(
 }
 
 #[tauri::command]
+pub fn get_model_api_key(state: State<'_, DbState>, id: String) -> Result<Option<String>, String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::get_model_config(&conn, Some(&id), true)
+        .map(|config| config.api_key)
+}
+
+#[tauri::command]
 pub fn get_model_settings(state: State<'_, DbState>) -> Result<ModelSettings, String> {
     let conn = state
         .conn
