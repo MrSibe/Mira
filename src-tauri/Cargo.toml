@@ -29,7 +29,6 @@ tokio = { version = "1", features = ["time"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 keyring = "2"
 futures-util = "0.3"
-tavily = "2"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.1"
