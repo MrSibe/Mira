@@ -263,17 +263,18 @@ pub async fn send_message(
                     };
 
                     // Add assistant tool call message + tool result message
+                    let tool_call_id = tool.id.clone();
                     msgs.push(model::openai_message("assistant", None, Some(vec![
                         model::OpenAiToolCall {
-                            id: tool.id.clone(),
+                            id: tool_call_id.clone(),
                             call_type: "function".to_string(),
                             function: model::ToolCallFunction {
                                 name: tool.function.name.clone(),
                                 arguments: tool.function.arguments.clone(),
                             },
                         }
-                    ])));
-                    msgs.push(model::openai_message("tool", Some(results_text), None));
+                    ]), None));
+                    msgs.push(model::openai_message("tool", Some(results_text), None, Some(tool_call_id)));
                 }
             }
         }

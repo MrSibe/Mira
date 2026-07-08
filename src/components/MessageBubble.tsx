@@ -1,39 +1,17 @@
-import { Bot, ExternalLink, Globe } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { Bot } from "lucide-react";
 import type { ChatMessage } from "../core/types";
 import { useAppStore } from "../store/useAppStore";
 import { MarkdownMessage } from "./MarkdownMessage";
-
-function SearchResultBadges({ message }: { message: ChatMessage }) {
-  const results = message.search_results ?? [];
-  if (results.length === 0) return null;
-
-  return (
-    <div className="flex items-center gap-1.5 overflow-x-auto px-1 py-2">
-      {results.map((r, i) => (
-        <button
-          key={i}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--panel-soft)] px-2.5 py-1 text-xs transition hover:bg-[var(--hover)]"
-          title={r.title}
-          onClick={() => void openUrl(r.url)}
-        >
-          <Globe className="h-3.5 w-3.5 text-[var(--primary)]" />
-          <span className="font-medium text-[var(--primary)]">{i + 1}</span>
-          <span className="max-w-[100px] truncate text-[var(--subtle)]">
-            {new URL(r.url).hostname.replace("www.", "")}
-          </span>
-          <ExternalLink className="h-3 w-3 text-[var(--subtle)]" />
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const results = message.search_results ?? [];
   const activeResults = useAppStore((s) => s.activeSearchResults);
-  const isSearchMessage = results.length > 0;
+
+  // Search result messages are invisible — they only carry data for citations
+  if (results.length > 0) {
+    return null;
+  }
 
   if (isUser) {
     return (
@@ -51,9 +29,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         <Bot className="h-4 w-4 text-[var(--text)]" />
       </div>
       <div className="min-w-0 flex-1">
-        {isSearchMessage ? (
-          <SearchResultBadges message={message} />
-        ) : message.content.trim().length === 0 ? (
+        {message.content.trim().length === 0 ? (
           <div className="flex min-h-7 items-center gap-2 text-sm text-[var(--muted)]">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--primary)]" />
             Mira is thinking

@@ -512,12 +512,13 @@ pub fn openai_message(
     role: &str,
     content: Option<String>,
     tool_calls: Option<Vec<OpenAiToolCall>>,
+    tool_call_id: Option<String>,
 ) -> OpenAiMessage {
     OpenAiMessage {
         role: role.to_string(),
         content,
         tool_calls,
-        tool_call_id: None,
+        tool_call_id,
     }
 }
 

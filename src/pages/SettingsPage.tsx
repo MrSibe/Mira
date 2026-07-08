@@ -4,6 +4,8 @@ import {
   Bot,
   Check,
   ExternalLink,
+  Eye,
+  EyeOff,
   Globe,
   Info,
   KeyRound,
@@ -133,6 +135,7 @@ export function SettingsPage() {
   const [searchProvider, setSearchProvider] = useState<"none" | "tavily">(
     "none",
   );
+  const [showProviderKey, setShowProviderKey] = useState(false);
 
   useEffect(() => {
     if (tavilyConfig) {
@@ -398,16 +401,16 @@ export function SettingsPage() {
               onClick={() => setSection("archive")}
             />
             <SettingsNavButton
-              active={section === "about"}
-              icon={Info}
-              label={t("settings.navAbout")}
-              onClick={() => setSection("about")}
-            />
-            <SettingsNavButton
               active={section === "search"}
               icon={Search}
               label={t("settings.navSearch")}
               onClick={() => setSection("search")}
+            />
+            <SettingsNavButton
+              active={section === "about"}
+              icon={Info}
+              label={t("settings.navAbout")}
+              onClick={() => setSection("about")}
             />
           </div>
         </aside>
@@ -428,6 +431,8 @@ export function SettingsPage() {
                 showSavedHint,
                 isChangingKey,
                 setIsChangingKey,
+                showProviderKey,
+                setShowProviderKey,
                 providerError,
                 onSubmit: handleSaveProvider,
                 onAdd: startAddProvider,
@@ -658,6 +663,7 @@ function renderSearch(
     handleSaveSearch,
   } = props;
   const keyStored = tavilyConfig?.credential_status === "stored";
+  const [showKey, setShowKey] = useState(false);
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
@@ -687,14 +693,37 @@ function renderSearch(
 
         {searchProvider === "tavily" ? (
           <label className="block text-sm font-medium">
-            {t("settings.search.apiKey")}
-            <Input
-              className="mt-2"
-              type="password"
-              placeholder={t("settings.search.apiKeyPlaceholder")}
-              value={searchApiKey}
-              onChange={(e) => setSearchApiKey(e.currentTarget.value)}
-            />
+            <span className="mb-2 flex items-center gap-2">
+              {t("settings.search.apiKey")}
+              {keyStored && !searchApiKey ? (
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="text-xs text-[var(--subtle)]">
+                    {t("settings.search.apiKeySaved")}
+                  </span>
+                </span>
+              ) : null}
+            </span>
+            <div className="relative mt-2">
+              <Input
+                className="pr-9"
+                type={showKey ? "text" : "password"}
+                placeholder={t("settings.search.apiKeyPlaceholder")}
+                value={searchApiKey}
+                onChange={(e) => setSearchApiKey(e.currentTarget.value)}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+                onClick={() => setShowKey((v) => !v)}
+              >
+                {showKey ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             <span className="mt-2 block text-xs text-[var(--subtle)]">
               {keyStored
                 ? t("settings.search.credentialSaved")
@@ -723,6 +752,8 @@ function renderProviders({
   showSavedHint,
   isChangingKey,
   setIsChangingKey,
+  showProviderKey,
+  setShowProviderKey,
   providerError,
   onSubmit,
   onAdd,
@@ -739,6 +770,8 @@ function renderProviders({
   showSavedHint: boolean;
   isChangingKey: boolean;
   setIsChangingKey: (value: boolean) => void;
+  showProviderKey: boolean;
+  setShowProviderKey: React.Dispatch<React.SetStateAction<boolean>>;
   providerError: string | null;
   onSubmit: (event: FormEvent) => Promise<void>;
   onAdd: () => void;
@@ -847,26 +880,49 @@ function renderProviders({
               />
             </label>
             <div className="block text-sm font-medium">
-              {t("settings.providers.apiKey")}
+              <span className="flex items-center gap-2">
+                {t("settings.providers.apiKey")}
+                {keyStored && !isDraftNew && !isChangingKey ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    <span className="text-xs text-[var(--subtle)]">
+                      {t("settings.providers.apiKeySaved")}
+                    </span>
+                  </span>
+                ) : null}
+              </span>
               {showKeyInput ? (
                 <>
-                  <Input
-                    className="mt-2"
-                    type="password"
-                    placeholder={
-                      keyStored
-                        ? t("settings.providers.apiKeyPlaceholderSaved")
-                        : t("settings.providers.apiKeyPlaceholderEmpty")
-                    }
-                    value={
-                      draft.api_key === "******" ? "" : (draft.api_key ?? "")
-                    }
-                    onChange={(event) =>
-                      updateDraft({
-                        api_key: event.currentTarget.value || null,
-                      })
-                    }
-                  />
+                  <div className="relative">
+                    <Input
+                      className="pr-9"
+                      type={showProviderKey ? "text" : "password"}
+                      placeholder={
+                        keyStored
+                          ? t("settings.providers.apiKeyPlaceholderSaved")
+                          : t("settings.providers.apiKeyPlaceholderEmpty")
+                      }
+                      value={
+                        draft.api_key === "******" ? "" : (draft.api_key ?? "")
+                      }
+                      onChange={(event) =>
+                        updateDraft({
+                          api_key: event.currentTarget.value || null,
+                        })
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--subtle)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+                      onClick={() => setShowProviderKey(!showProviderKey)}
+                    >
+                      {showProviderKey ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                   <span className="mt-2 block text-xs text-[var(--subtle)]">
                     {t("settings.providers.apiKeyVaultHint")}
                   </span>
@@ -878,8 +934,8 @@ function renderProviders({
                 </>
               ) : (
                 <div className="mt-2 flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--panel-soft)] px-2.5 py-1.5 text-xs font-medium text-[var(--text)]">
-                    <Check className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text)]">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
                     {t("settings.providers.apiKeySaved")}
                   </span>
                   <Button
