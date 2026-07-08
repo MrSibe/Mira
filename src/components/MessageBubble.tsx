@@ -39,9 +39,8 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           <article className="rounded-xl bg-[var(--message-user)] px-4 py-2.5 text-sm leading-6 text-[var(--text)]">
             <MarkdownMessage content={message.content} />
           </article>
-          {timeStr && !isSending ? (
+          {!isSending ? (
             <div className="mt-1 flex items-center justify-end gap-2 pr-1">
-              <p className="text-[11px] text-[var(--subtle)]">{timeStr}</p>
               <button
                 className="rounded p-0.5 text-[var(--subtle)] opacity-0 transition hover:text-[var(--text)] group-hover:opacity-100"
                 onClick={handleCopy}
