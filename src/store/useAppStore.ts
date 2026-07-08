@@ -11,8 +11,6 @@ import type {
   ModelSettings,
   Page,
   Project,
-  SearchResult,
-  TavilyConfig,
   ThemeMode,
 } from "../core/types";
 import { tauriClient } from "../core/tauriClient";
@@ -35,7 +33,6 @@ async function sendToLlm(
   content: string,
   conversationProjectId: string | null,
   userMessageId: string,
-  withSearch?: boolean,
   userDisplayContent?: string,
 ) {
   const requestId = crypto.randomUUID();
@@ -84,7 +81,6 @@ async function sendToLlm(
       get().activeModelConfigId,
       conversationProjectId,
       requestId,
-      withSearch,
     );
     set((current) => ({
       activeConversationId: result.conversation.id,
@@ -138,17 +134,10 @@ export interface AppState {
   error: string | null;
   themeMode: ThemeMode;
   locale: Locale;
-  tavilyConfig: TavilyConfig | null;
-  isSearchEnabled: boolean;
-  activeSearchResults: SearchResult[];
   isSidebarCollapsed: boolean;
   setPage: (page: Page) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
   setLocale: (locale: Locale) => void;
-  setSearchEnabled: (enabled: boolean) => void;
-  loadTavilyConfig: () => Promise<void>;
-  saveTavilyConfig: (enabled: boolean, apiKey?: string | null) => Promise<void>;
-  setActiveSearchResults: (results: SearchResult[]) => void;
   toggleSidebar: () => void;
   setActiveProject: (projectId: string | null) => void;
   bootstrap: () => Promise<void>;
@@ -164,7 +153,7 @@ export interface AppState {
     conversationId: string,
     projectId: string | null,
   ) => Promise<void>;
-  sendMessage: (content: string, withSearch?: boolean) => Promise<void>;
+  sendMessage: (content: string) => Promise<void>;
   setActiveModel: (modelConfigId: string) => void;
   saveModelSettings: (settings: ModelSettings) => Promise<void>;
   loadMemories: (query?: string) => Promise<void>;
@@ -192,9 +181,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
   themeMode: readStoredThemeMode(),
   locale: readStoredLocale(),
-  tavilyConfig: null,
-  isSearchEnabled: false,
-  activeSearchResults: [],
   isSidebarCollapsed: false,
   setPage: (page) =>
     set((state) => {
@@ -225,16 +211,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     storeLocale(locale);
     setCurrentLocale(locale);
     set({ locale });
-  },
-  setSearchEnabled: (enabled) => set({ isSearchEnabled: enabled }),
-  loadTavilyConfig: async () => {
-    const config = await tauriClient.getTavilyConfig();
-    set({ tavilyConfig: config });
-  },
-  setActiveSearchResults: (results) => set({ activeSearchResults: results }),
-  saveTavilyConfig: async (enabled, apiKey) => {
-    const config = await tauriClient.saveTavilyConfig(enabled, apiKey);
-    set({ tavilyConfig: config, isSearchEnabled: enabled });
   },
   toggleSidebar: () =>
     set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
@@ -270,7 +246,6 @@ export const useAppStore = create<AppState>((set, get) => ({
           void get().loadMemories();
         });
       }
-      const [tavilyConfig] = await Promise.all([tauriClient.getTavilyConfig()]);
       set({
         conversations,
         archivedConversations,
@@ -284,8 +259,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeConversationId,
         activeModelConfigId,
         messages,
-        tavilyConfig,
-        isSearchEnabled: tavilyConfig.enabled,
         error: null,
       });
     } catch (error) {
@@ -502,8 +475,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           : state.activeProjectId,
     }));
   },
-  sendMessage: async (content, withSearch) => {
-    set({ activeSearchResults: [] });
+  sendMessage: async (content) => {
     const trimmed = content.trim();
     if (!trimmed) {
       return;
@@ -545,64 +517,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         created_at: new Date().toISOString(),
       };
 
-      // Search flow: show searching → results capsules → send original question with withSearch
-      if (withSearch) {
-        const searchId = `search-${crypto.randomUUID()}`;
-        const searchingMessage: ChatMessage = {
-          id: searchId,
-          conversation_id: conversationId,
-          role: "assistant",
-          content: t("chat.searching"),
-          created_at: new Date().toISOString(),
-        };
-
-        set((current) => ({
-          isSending: true,
-          error: null,
-          messages:
-            current.activeConversationId === conversationId
-              ? [...current.messages, optimisticUserMessage, searchingMessage]
-              : current.messages,
-        }));
-
-        // Parallel search for UI capsules
-        try {
-          const results = await tauriClient.searchWeb(trimmed);
-          if (results.length > 0) {
-            set((current) => ({
-              messages: current.messages.map((msg) =>
-                msg.id === searchId
-                  ? { ...msg, content: "", search_results: results }
-                  : msg,
-              ),
-              activeSearchResults: results,
-            }));
-          } else {
-            set((current) => ({
-              messages: current.messages.filter((msg) => msg.id !== searchId),
-            }));
-          }
-        } catch {
-          set((current) => ({
-            messages: current.messages.filter((msg) => msg.id !== searchId),
-          }));
-        }
-
-        // Send original question to backend — backend handles tool call loop
-        await sendToLlm(
-          set,
-          get,
-          conversationId,
-          trimmed,
-          conversationProjectId,
-          optimisticUserMessage.id,
-          true,
-          trimmed,
-        );
-        return;
-      }
-
-      // Normal flow: no search
       await sendToLlm(
         set,
         get,

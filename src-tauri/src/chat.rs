@@ -1,12 +1,10 @@
 use crate::database::{self, DbState};
 use crate::memory;
 use crate::model;
-use crate::secrets;
 use crate::types::{
     ChatMessage, Conversation, Memory, MemoryPatch, MessageStreamDelta, ModelConfig, ModelSettings,
-    Project, SearchResult, SendMessageResult, TavilyConfig,
+    Project, SendMessageResult,
 };
-use crate::web_search;
 use tauri::{AppHandle, Emitter, Manager, State, Window};
 
 #[tauri::command]
@@ -155,7 +153,6 @@ pub async fn send_message(
     model_config_id: Option<String>,
     project_id: Option<String>,
     request_id: Option<String>,
-    with_search: Option<bool>,
 ) -> Result<SendMessageResult, String> {
     let trimmed = content.trim().to_string();
     if trimmed.is_empty() {
@@ -213,83 +210,12 @@ pub async fn send_message(
 
     let stream_conversation_id = conversation.id.clone();
     let stream_request_id = request_id.clone();
-
-    let tool_messages = if with_search.unwrap_or(false) {
-        // Phase 1: non-streaming request with tool definition
-        let api_key = model_config
-            .api_key
-            .clone()
-            .filter(|v| !v.trim().is_empty() && v != "******")
-            .ok_or_else(|| format!("模型配置 {} 缺少 API Key", model_config.name))?;
-
-        let mut msgs = model::build_messages_for_search(
-            &history,
-            &project_context,
-            &injected_memories,
-            &trimmed,
-        );
-
-        let initial = model::complete_chat_non_streaming(
-            &model_config,
-            &api_key,
-            &msgs,
-            true,
-        )
-        .await?;
-
-        if let Some(tool_calls) = initial.choices.first().and_then(|c| c.message.tool_calls.as_ref()) {
-            if let Some(tool) = tool_calls.first() {
-                if tool.function.name == "web_search" {
-                    // Parse the search query from the tool call arguments
-                    let args: serde_json::Value = serde_json::from_str(&tool.function.arguments)
-                        .map_err(|e| format!("无法解析搜索参数: {e}"))?;
-                    let query = args["query"].as_str()
-                        .ok_or_else(|| "搜索参数中缺少 query 字段".to_string())?;
-
-                    // Call Tavily
-                    let tavily_key = secrets::load_tavily_api_key()?
-                        .ok_or_else(|| "Tavily API Key 未配置".to_string())?;
-                    let search_results = web_search::search_web(query, &tavily_key).await?;
-
-                    let results_text = if search_results.is_empty() {
-                        "No results found.".to_string()
-                    } else {
-                        search_results.iter().enumerate()
-                            .map(|(i, r)| {
-                                format!("[{}] {} | {}\n{}", i + 1, r.title, r.url, r.content)
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n\n")
-                    };
-
-                    // Add assistant tool call message + tool result message
-                    let tool_call_id = tool.id.clone();
-                    msgs.push(model::openai_message("assistant", None, Some(vec![
-                        model::OpenAiToolCall {
-                            id: tool_call_id.clone(),
-                            call_type: "function".to_string(),
-                            function: model::ToolCallFunction {
-                                name: tool.function.name.clone(),
-                                arguments: tool.function.arguments.clone(),
-                            },
-                        }
-                    ]), None));
-                    msgs.push(model::openai_message("tool", Some(results_text), None, Some(tool_call_id)));
-                }
-            }
-        }
-        msgs
-    } else {
-        Vec::new()
-    };
-
     let assistant_content = model::complete_chat_streaming(
         &model_config,
         &history,
         &project_context,
         &injected_memories,
         &trimmed,
-        tool_messages,
         |delta| {
             window
                 .emit(
@@ -405,45 +331,6 @@ pub fn delete_model_config(
         .lock()
         .map_err(|_| "Database lock is poisoned".to_string())?;
     database::delete_model_config(&conn, &id)
-}
-
-#[tauri::command]
-pub async fn search_web(state: State<'_, DbState>, query: String) -> Result<Vec<SearchResult>, String> {
-    let api_key = {
-        let conn = state
-            .conn
-            .lock()
-            .map_err(|_| "Database lock is poisoned".to_string())?;
-        let config = database::get_tavily_config(&conn)?;
-        if !config.enabled {
-            return Err("Web search is not enabled. Enable it in Settings.".to_string());
-        }
-        secrets::load_tavily_api_key()?
-            .ok_or_else(|| "Tavily API key not configured.".to_string())?
-    };
-    web_search::search_web(&query, &api_key).await
-}
-
-#[tauri::command]
-pub fn get_tavily_config(state: State<'_, DbState>) -> Result<TavilyConfig, String> {
-    let conn = state
-        .conn
-        .lock()
-        .map_err(|_| "Database lock is poisoned".to_string())?;
-    database::get_tavily_config(&conn)
-}
-
-#[tauri::command]
-pub fn save_tavily_config(
-    state: State<'_, DbState>,
-    enabled: bool,
-    api_key: Option<String>,
-) -> Result<TavilyConfig, String> {
-    let conn = state
-        .conn
-        .lock()
-        .map_err(|_| "Database lock is poisoned".to_string())?;
-    database::save_tavily_config(&conn, enabled, api_key.as_deref())
 }
 
 #[tauri::command]

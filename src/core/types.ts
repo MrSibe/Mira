@@ -29,7 +29,6 @@ export interface ChatMessage {
   role: Role;
   content: string;
   created_at: string;
-  search_results?: SearchResult[];
 }
 
 export interface ModelConfig {
@@ -86,17 +85,4 @@ export interface MemoryPatch {
   confidence?: number;
   tags?: string | null;
   is_archived?: boolean;
-}
-
-export interface SearchResult {
-  title: string;
-  url: string;
-  content: string;
-  score: number;
-}
-
-export interface TavilyConfig {
-  enabled: boolean;
-  credential_status: "stored" | "missing" | "error" | null;
-  credential_error?: string | null;
 }

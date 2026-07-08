@@ -22,8 +22,6 @@ export const zh: typeof en = {
   chat: {
     emptyHeading: "今天想聊什么？",
     thinking: "Mira 正在思考",
-    searching: "正在搜索...",
-    searchResults: "搜索到 {{n}} 个网页",
   },
   composer: {
     placeholder: "询问任何问题",
@@ -71,7 +69,6 @@ export const zh: typeof en = {
     navMemories: "记忆",
     navArchive: "归档",
     navAbout: "关于",
-    navSearch: "网络搜索",
     deleteDialogConversationTitle: "删除归档对话",
     deleteDialogMemoryTitle: "删除记忆",
     deleteDialogConversationDesc: '将永久删除"{{title}}"，此操作不可撤销。',
@@ -179,20 +176,6 @@ export const zh: typeof en = {
       dialogLater: "稍后",
       dialogUpdate: "立即更新",
       dialogRestart: "立即重启",
-    },
-    search: {
-      title: "网络搜索",
-      description: "让 Mira 通过网络搜索来回答你的问题。",
-      providerLabel: "搜索服务商",
-      providerNone: "无",
-      providerTavily: "Tavily",
-      apiKey: "Tavily API Key",
-      apiKeySaved: "API Key 已保存",
-      apiKeyPlaceholder: "tvly-...",
-      apiKeyMissing: "未配置",
-      credentialSaved: "Tavily API Key 已保存。",
-      credentialMissing: "尚未设置 Tavily API Key。",
-      enableSearch: "在聊天中启用网络搜索",
     },
   },
   time: {

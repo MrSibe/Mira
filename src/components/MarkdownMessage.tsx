@@ -1,46 +1,7 @@
-import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
-import type { SearchResult } from "../core/types";
-import { openUrl } from "@tauri-apps/plugin-opener";
 
-export function MarkdownMessage({
-  content,
-  searchResults,
-}: {
-  content: string;
-  searchResults?: SearchResult[];
-}) {
-  function renderText(text: string): ReactNode {
-    if (!searchResults || searchResults.length === 0) {
-      return text;
-    }
-    const parts = text.split(/(\[\d+\])/g);
-    if (parts.length === 1) {
-      return text;
-    }
-    return parts.map((part, i) => {
-      const m = part.match(/^\[(\d+)\]$/);
-      if (m) {
-        const idx = parseInt(m[1]) - 1;
-        if (idx >= 0 && idx < searchResults.length) {
-          return (
-            <button
-              key={i}
-              className="inline-flex items-center justify-center rounded-sm bg-[var(--panel-soft)] px-1 text-xs font-semibold text-[var(--primary)] align-super leading-none hover:bg-[var(--hover)]"
-              style={{ fontSize: "0.7em", lineHeight: "1.2" }}
-              onClick={() => void openUrl(searchResults[idx].url)}
-              title={searchResults[idx].title}
-            >
-              {m[1]}
-            </button>
-          );
-        }
-      }
-      return part;
-    });
-  }
-
+export function MarkdownMessage({ content }: { content: string }) {
   return (
     <ReactMarkdown
       rehypePlugins={[rehypeHighlight]}
@@ -68,7 +29,6 @@ export function MarkdownMessage({
             {children}
           </pre>
         ),
-        text: ({ children }) => <>{renderText(String(children))}</>,
       }}
     >
       {content}

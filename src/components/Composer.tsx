@@ -1,20 +1,15 @@
-import { ArrowUp, Globe } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { cn } from "../utils/cn";
 
 export function Composer() {
   const t = useT();
   const [content, setContent] = useState("");
-  const [searchActive, setSearchActive] = useState(false);
   const isSending = useAppStore((state) => state.isSending);
   const sendMessage = useAppStore((state) => state.sendMessage);
-  const tavilyConfig = useAppStore((state) => state.tavilyConfig);
-  const tavilyConfigured =
-    tavilyConfig?.credential_status === "stored" && tavilyConfig.enabled;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -23,8 +18,7 @@ export function Composer() {
       return;
     }
     setContent("");
-    setSearchActive(false);
-    await sendMessage(trimmed, searchActive);
+    await sendMessage(trimmed);
   }
 
   return (
@@ -46,22 +40,6 @@ export function Composer() {
               }
             }}
           />
-          {tavilyConfigured ? (
-            <button
-              type="button"
-              aria-label="Web search"
-              title={searchActive ? "Web search on" : "Web search off"}
-              className={cn(
-                "mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm transition",
-                searchActive
-                  ? "bg-[var(--primary)] text-[var(--primary-text)]"
-                  : "text-[var(--subtle)] hover:bg-[var(--hover)] hover:text-[var(--text)]",
-              )}
-              onClick={() => setSearchActive((v) => !v)}
-            >
-              <Globe className="h-4 w-4" />
-            </button>
-          ) : null}
           <Button
             aria-label={t("composer.send")}
             title={t("composer.send")}

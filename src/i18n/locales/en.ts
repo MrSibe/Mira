@@ -20,8 +20,6 @@ export const en = {
   chat: {
     emptyHeading: "What would you like to talk about today?",
     thinking: "Mira is thinking",
-    searching: "Searching the web...",
-    searchResults: "Found {{n}} results",
   },
   composer: {
     placeholder: "Ask anything",
@@ -70,7 +68,6 @@ export const en = {
     navMemories: "Memory",
     navArchive: "Archive",
     navAbout: "About",
-    navSearch: "Web Search",
     deleteDialogConversationTitle: "Delete archived conversation",
     deleteDialogMemoryTitle: "Delete memory",
     deleteDialogConversationDesc:
@@ -186,20 +183,6 @@ export const en = {
       dialogLater: "Later",
       dialogUpdate: "Update now",
       dialogRestart: "Restart now",
-    },
-    search: {
-      title: "Web Search",
-      description: "Let Mira search the web to answer questions.",
-      providerLabel: "Search provider",
-      providerNone: "None",
-      providerTavily: "Tavily",
-      apiKey: "Tavily API Key",
-      apiKeySaved: "API Key saved",
-      apiKeyPlaceholder: "tvly-...",
-      apiKeyMissing: "Not configured",
-      credentialSaved: "Tavily API Key is saved.",
-      credentialMissing: "Tavily API Key not set.",
-      enableSearch: "Enable web search in chat",
     },
   },
   time: {

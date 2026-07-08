@@ -89,20 +89,3 @@ pub struct MessageStreamDelta {
     pub conversation_id: String,
     pub content: String,
 }
-
-/// A single search result from Tavily.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SearchResult {
-    pub title: String,
-    pub url: String,
-    pub content: String,
-    pub score: f64,
-}
-
-/// Tavily search configuration stored in app_settings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TavilyConfig {
-    pub enabled: bool,
-    pub credential_status: Option<String>,
-    pub credential_error: Option<String>,
-}
