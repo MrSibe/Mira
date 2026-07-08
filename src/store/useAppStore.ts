@@ -503,6 +503,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
   sendMessage: async (content, withSearch) => {
+    set({ activeSearchResults: [] });
     const trimmed = content.trim();
     if (!trimmed) {
       return;
