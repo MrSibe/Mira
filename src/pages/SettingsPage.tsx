@@ -729,7 +729,9 @@ function renderProviders({
                   type={showProviderKey ? "text" : "password"}
                   placeholder={t("settings.providers.apiKeyPlaceholderEmpty")}
                   value={
-                    draft.credential_status === "stored" ? "*".repeat(32) : (draft.api_key ?? "")
+                    draft.credential_status === "stored"
+                      ? "*".repeat(32)
+                      : (draft.api_key ?? "")
                   }
                   onChange={(event) =>
                     updateDraft({ api_key: event.currentTarget.value || null })
