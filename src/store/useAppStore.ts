@@ -63,6 +63,21 @@ async function sendToLlm(
         ) {
           return current;
         }
+        if (current.cancelRequested) {
+          return current;
+        }
+        if (delta.reasoning) {
+          return {
+            messages: current.messages.map((message) =>
+              message.id === optimisticAssistantMessage.id
+                ? {
+                    ...message,
+                    reasoning: (message.reasoning ?? "") + delta.reasoning,
+                  }
+                : message,
+            ),
+          };
+        }
         return {
           messages: current.messages.map((message) =>
             message.id === optimisticAssistantMessage.id
@@ -82,6 +97,10 @@ async function sendToLlm(
       conversationProjectId,
       requestId,
     );
+    if (get().cancelRequested) {
+      set({ isSending: false });
+      return;
+    }
     set((current) => ({
       activeConversationId: result.conversation.id,
       activeProjectId:
@@ -105,7 +124,12 @@ async function sendToLlm(
                         userDisplayContent ?? result.user_message.content,
                     }
                   : message.id === optimisticAssistantMessage.id
-                    ? result.assistant_message
+                    ? {
+                        ...result.assistant_message,
+                        reasoning: current.messages.find(
+                          (m) => m.id === optimisticAssistantMessage.id,
+                        )?.reasoning,
+                      }
                     : message,
               ),
             ]
@@ -131,6 +155,7 @@ export interface AppState {
   activeModelConfigId: string | null;
   memories: Memory[];
   isSending: boolean;
+  cancelRequested: boolean;
   error: string | null;
   themeMode: ThemeMode;
   locale: Locale;
@@ -138,6 +163,7 @@ export interface AppState {
   setPage: (page: Page) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
   setLocale: (locale: Locale) => void;
+  requestCancel: () => void;
   toggleSidebar: () => void;
   setActiveProject: (projectId: string | null) => void;
   bootstrap: () => Promise<void>;
@@ -145,6 +171,7 @@ export interface AppState {
   createProject: (name: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   renameProject: (projectId: string, name: string) => Promise<void>;
+  renameConversation: (conversationId: string, title: string) => Promise<void>;
   selectConversation: (conversationId: string) => Promise<void>;
   archiveConversation: (conversationId: string) => Promise<void>;
   restoreConversation: (conversationId: string) => Promise<void>;
@@ -178,6 +205,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeModelConfigId: null,
   memories: [],
   isSending: false,
+  cancelRequested: false,
   error: null,
   themeMode: readStoredThemeMode(),
   locale: readStoredLocale(),
@@ -212,6 +240,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     setCurrentLocale(locale);
     set({ locale });
   },
+  requestCancel: () => set({ cancelRequested: true }),
   toggleSidebar: () =>
     set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
   setActiveProject: (projectId) => set({ activeProjectId: projectId }),
@@ -327,6 +356,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const project = await tauriClient.renameProject(projectId, name);
     set((state) => ({
       projects: state.projects.map((p) => (p.id === projectId ? project : p)),
+    }));
+  },
+  renameConversation: async (conversationId, title) => {
+    const conversation = await tauriClient.renameConversation(
+      conversationId,
+      title,
+    );
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId ? conversation : c,
+      ),
     }));
   },
   selectConversation: async (conversationId) => {
@@ -517,6 +557,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         created_at: new Date().toISOString(),
       };
 
+      set((current) => ({
+        isSending: true,
+        error: null,
+        messages:
+          current.activeConversationId === conversationId
+            ? [...current.messages, optimisticUserMessage]
+            : current.messages,
+      }));
+
       await sendToLlm(
         set,
         get,
@@ -528,6 +577,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (error) {
       set({
         isSending: false,
+        cancelRequested: false,
         error: String(error),
         messages: [
           ...get().messages.filter(
