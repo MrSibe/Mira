@@ -82,7 +82,7 @@ pub struct MemoryPatch {
 pub struct SendMessageResult {
     pub conversation: Conversation,
     pub user_message: ChatMessage,
-    pub assistant_message: ChatMessage,
+    pub assistant_message: Option<ChatMessage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

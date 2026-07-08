@@ -1,5 +1,5 @@
 import { ArrowUp, Square } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/useT";
 import { useAppStore } from "../store/useAppStore";
 import { Button } from "./ui/button";
@@ -8,9 +8,27 @@ import { Textarea } from "./ui/textarea";
 export function Composer() {
   const t = useT();
   const [content, setContent] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isSending = useAppStore((state) => state.isSending);
   const sendMessage = useAppStore((state) => state.sendMessage);
   const requestCancel = useAppStore((state) => state.requestCancel);
+
+  function autoResize() {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    }
+  }
+
+  useEffect(() => {
+    if (!content) {
+      const el = textareaRef.current;
+      if (el) {
+        el.style.height = "auto";
+      }
+    }
+  }, [content]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -30,10 +48,12 @@ export function Composer() {
       <div className="mx-auto max-w-3xl">
         <div className="flex min-h-14 items-end gap-2 rounded-xl border border-[var(--border-strong)] bg-[var(--panel)] p-2 shadow-[var(--shadow-raised)]">
           <Textarea
-            className="max-h-44 min-h-10 flex-1 border-0 bg-transparent px-2 py-2 shadow-none focus:border-0 focus:ring-0"
+            ref={textareaRef}
+            className="max-h-44 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus:border-0 focus:ring-0"
             placeholder={t("composer.placeholder")}
             value={content}
             onChange={(event) => setContent(event.currentTarget.value)}
+            onInput={() => autoResize()}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();

@@ -70,7 +70,7 @@ export interface Memory {
 export interface SendMessageResult {
   conversation: Conversation;
   user_message: ChatMessage;
-  assistant_message: ChatMessage;
+  assistant_message: ChatMessage | null;
 }
 
 export interface MessageStreamDelta {

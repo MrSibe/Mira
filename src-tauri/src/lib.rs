@@ -1,5 +1,6 @@
 use tauri::Manager;
 
+mod cancellation;
 mod chat;
 mod database;
 mod memory;
@@ -19,9 +20,11 @@ pub fn run() {
             app.manage(database::DbState {
                 conn: std::sync::Mutex::new(conn),
             });
+            app.manage(cancellation::CancellationState::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            cancellation::cancel_message,
             chat::send_message,
             chat::list_conversations,
             chat::list_archived_conversations,

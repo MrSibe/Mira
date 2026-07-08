@@ -73,7 +73,7 @@ export function ChatPage() {
           </div>
         </div>
 
-        <Composer />
+        <Composer key={activeConversationId} />
       </main>
     </AppShell>
   );

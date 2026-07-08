@@ -2,6 +2,7 @@ use crate::types::{ChatMessage, Memory, ModelConfig};
 use futures_util::StreamExt;
 use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
@@ -58,6 +59,7 @@ pub async fn complete_chat_streaming<F, G>(
     system_prompt_extra: &str,
     mut on_delta: F,
     mut on_reasoning: G,
+    cancel_requested: &AtomicBool,
 ) -> Result<String, String>
 where
     F: FnMut(&str) -> Result<(), String>,
@@ -88,6 +90,11 @@ where
     let mut stream = response.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
+        if cancel_requested.load(Ordering::SeqCst) {
+            flush_stream_buffer(&mut buffer, &mut full_content, &mut on_delta, &mut on_reasoning)?;
+            drop(stream);
+            return Err("__CANCELLED__".to_string());
+        }
         let chunk = chunk.map_err(|error| format!("模型流式响应读取失败: {error}"))?;
         append_stream_chunk(&mut buffer, &chunk, &mut full_content, &mut on_delta, &mut on_reasoning)?;
     }

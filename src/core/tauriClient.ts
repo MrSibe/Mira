@@ -11,6 +11,7 @@ import type {
 } from "./types";
 
 export const tauriClient = {
+  cancelMessage: () => invoke<void>("cancel_message"),
   listConversations: () => invoke<Conversation[]>("list_conversations"),
   listArchivedConversations: () =>
     invoke<Conversation[]>("list_archived_conversations"),

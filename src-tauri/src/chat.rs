@@ -1,3 +1,4 @@
+use crate::cancellation::CancellationState;
 use crate::database::{self, DbState};
 use crate::memory;
 use crate::model;
@@ -148,6 +149,7 @@ pub async fn send_message(
     window: Window,
     app: AppHandle,
     state: State<'_, DbState>,
+    cancel_state: State<'_, CancellationState>,
     conversation_id: Option<String>,
     content: String,
     model_config_id: Option<String>,
@@ -159,6 +161,7 @@ pub async fn send_message(
         return Err("消息不能为空".to_string());
     }
     let request_id = request_id.unwrap_or_else(database::new_id);
+    cancel_state.reset();
 
     let (
         conversation,
@@ -217,8 +220,9 @@ pub async fn send_message(
             .map_err(|_| "Database lock is poisoned".to_string())?;
         database::get_system_prompt(&conn)?
     };
+    let cancel_flag = cancel_state.cancel_requested.clone();
     let mut assistant_reasoning = String::new();
-    let assistant_content = model::complete_chat_streaming(
+    let assistant_content = match model::complete_chat_streaming(
         &model_config,
         &history,
         &project_context,
@@ -252,8 +256,20 @@ pub async fn send_message(
                 )
                 .map_err(|error| format!("无法发送推理消息事件: {error}"))
         },
+        &cancel_flag,
     )
-    .await?;
+    .await
+    {
+        Ok(content) => content,
+        Err(error) if error == "__CANCELLED__" => {
+            return Ok(SendMessageResult {
+                conversation,
+                user_message,
+                assistant_message: None,
+            });
+        }
+        Err(error) => return Err(error),
+    };
 
     let (conversation, assistant_message) = {
         let conn = state
@@ -284,7 +300,7 @@ pub async fn send_message(
     Ok(SendMessageResult {
         conversation,
         user_message,
-        assistant_message,
+        assistant_message: Some(assistant_message),
     })
 }
 

@@ -98,7 +98,7 @@ async function sendToLlm(
       requestId,
     );
     if (get().cancelRequested) {
-      set({ isSending: false });
+      set({ isSending: false, cancelRequested: false });
       return;
     }
     set((current) => ({
@@ -125,7 +125,7 @@ async function sendToLlm(
                     }
                   : message.id === optimisticAssistantMessage.id
                     ? {
-                        ...result.assistant_message,
+                        ...result.assistant_message!,
                         reasoning: current.messages.find(
                           (m) => m.id === optimisticAssistantMessage.id,
                         )?.reasoning,
@@ -240,7 +240,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     setCurrentLocale(locale);
     set({ locale });
   },
-  requestCancel: () => set({ cancelRequested: true }),
+  requestCancel: () => {
+    set({ cancelRequested: true });
+    tauriClient.cancelMessage();
+  },
   toggleSidebar: () =>
     set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
   setActiveProject: (projectId) => set({ activeProjectId: projectId }),
@@ -575,15 +578,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         optimisticUserMessage.id,
       );
     } catch (error) {
+      const errorMsg = String(error);
+      if (get().cancelRequested || errorMsg === "__CANCELLED__") {
+        set({ isSending: false, cancelRequested: false });
+        return;
+      }
       set({
         isSending: false,
         cancelRequested: false,
-        error: String(error),
+        error: errorMsg,
         messages: [
           ...get().messages.filter(
             (message) => !message.id.startsWith("streaming-"),
           ),
-          fallbackMessage(t("errors.sendFailed", { error: String(error) })),
+          fallbackMessage(t("errors.sendFailed", { error: errorMsg })),
         ],
       });
     }
