@@ -19,7 +19,8 @@ function formatTime(iso: string): string {
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const isSending = useAppStore((state) => state.isSending);
-  const isAssistantStreaming = !isUser && !message.content && isSending;
+  const isAssistantStreaming =
+    !isUser && !message.content && !message.reasoning && isSending;
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
@@ -73,7 +74,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         ) : (
           <div className="group relative">
             {message.reasoning ? (
-              <details className="mb-2 rounded-md bg-[var(--panel-soft)]">
+              <details className="mb-2 rounded-md bg-[var(--panel-soft)]" open>
                 <summary className="flex cursor-pointer items-center gap-1 px-3 py-1.5 text-xs font-medium text-[var(--subtle)] hover:text-[var(--text)]">
                   <ChevronDown className="h-3 w-3" />
                   {t("chat.thought")}
@@ -83,17 +84,19 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
                 </div>
               </details>
             ) : null}
-            <article
-              className={cn(
-                "text-[15px] leading-7 text-[var(--text)]",
-                "[&_p]:mb-3 [&_p:last-child]:mb-0",
-                "[&_pre]:my-3 [&_pre]:bg-[var(--code-block)] [&_pre]:p-4 [&_pre]:text-sm",
-                "[&_code]:rounded [&_code]:bg-[var(--code-inline)] [&_code]:px-1 [&_code]:py-0.5",
-                "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
-              )}
-            >
-              <MarkdownMessage content={message.content} />
-            </article>
+            {message.content ? (
+              <article
+                className={cn(
+                  "text-[15px] leading-7 text-[var(--text)]",
+                  "[&_p]:mb-3 [&_p:last-child]:mb-0",
+                  "[&_pre]:my-3 [&_pre]:bg-[var(--code-block)] [&_pre]:p-4 [&_pre]:text-sm",
+                  "[&_code]:rounded [&_code]:bg-[var(--code-inline)] [&_code]:px-1 [&_code]:py-0.5",
+                  "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
+                )}
+              >
+                <MarkdownMessage content={message.content} />
+              </article>
+            ) : null}
             {timeStr && !isSending ? (
               <div className="mt-1 flex items-center gap-2">
                 <p className="text-[11px] text-[var(--subtle)]">{timeStr}</p>
