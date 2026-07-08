@@ -54,7 +54,7 @@ export function AlertDialog({
       <section
         aria-modal="true"
         role="alertdialog"
-        className="relative w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--panel)] p-5 text-[var(--text)] shadow-[var(--shadow-soft)]"
+        className="relative w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--panel)] p-5 text-[var(--text)] shadow-[var(--shadow-modal)]"
       >
         <div className="mb-4 flex items-start gap-3">
           <div className="mt-0.5 rounded-full bg-[var(--panel-soft)] p-2 text-[var(--muted)]">

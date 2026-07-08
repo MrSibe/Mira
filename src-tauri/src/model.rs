@@ -49,16 +49,19 @@ struct StreamDelta {
     reasoning_content: Option<String>,
 }
 
-pub async fn complete_chat_streaming<F>(
+pub async fn complete_chat_streaming<F, G>(
     config: &ModelConfig,
     history: &[ChatMessage],
     project_context: &[ChatMessage],
     injected_memories: &[Memory],
     user_content: &str,
+    system_prompt_extra: &str,
     mut on_delta: F,
+    mut on_reasoning: G,
 ) -> Result<String, String>
 where
     F: FnMut(&str) -> Result<(), String>,
+    G: FnMut(&str) -> Result<(), String>,
 {
     let api_key = config
         .api_key
@@ -66,7 +69,7 @@ where
         .filter(|value| !value.trim().is_empty() && value != "******")
         .ok_or_else(|| format!("模型配置 {} 缺少 API Key", config.name))?;
     let endpoint = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
-    let messages = build_messages(history, project_context, injected_memories, user_content);
+    let messages = build_messages(history, project_context, injected_memories, user_content, system_prompt_extra);
     let request = build_request(config, messages);
     let client = Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)
@@ -86,10 +89,10 @@ where
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| format!("模型流式响应读取失败: {error}"))?;
-        append_stream_chunk(&mut buffer, &chunk, &mut full_content, &mut on_delta)?;
+        append_stream_chunk(&mut buffer, &chunk, &mut full_content, &mut on_delta, &mut on_reasoning)?;
     }
 
-    flush_stream_buffer(&mut buffer, &mut full_content, &mut on_delta)?;
+    flush_stream_buffer(&mut buffer, &mut full_content, &mut on_delta, &mut on_reasoning)?;
 
     if full_content.trim().is_empty() {
         return Err("模型返回了空内容".to_string());
@@ -150,32 +153,36 @@ fn retry_delay(attempt: usize) -> Duration {
     Duration::from_millis(500 * attempt as u64)
 }
 
-fn append_stream_chunk<F>(
+fn append_stream_chunk<F, G>(
     buffer: &mut Vec<u8>,
     chunk: &[u8],
     full_content: &mut String,
     on_delta: &mut F,
+    on_reasoning: &mut G,
 ) -> Result<(), String>
 where
     F: FnMut(&str) -> Result<(), String>,
+    G: FnMut(&str) -> Result<(), String>,
 {
     buffer.extend_from_slice(chunk);
     while let Some((separator, separator_len)) = find_event_separator(buffer) {
         let raw_event = String::from_utf8(buffer[..separator].to_vec())
             .map_err(|error| format!("模型流式响应不是有效 UTF-8: {error}"))?;
         buffer.drain(..separator + separator_len);
-        handle_stream_event(&raw_event, full_content, on_delta)?;
+        handle_stream_event(&raw_event, full_content, on_delta, on_reasoning)?;
     }
     Ok(())
 }
 
-fn flush_stream_buffer<F>(
+fn flush_stream_buffer<F, G>(
     buffer: &mut Vec<u8>,
     full_content: &mut String,
     on_delta: &mut F,
+    on_reasoning: &mut G,
 ) -> Result<(), String>
 where
     F: FnMut(&str) -> Result<(), String>,
+    G: FnMut(&str) -> Result<(), String>,
 {
     if buffer.iter().all(|byte| byte.is_ascii_whitespace()) {
         buffer.clear();
@@ -184,7 +191,7 @@ where
     let raw_event = String::from_utf8(std::mem::take(buffer))
         .map_err(|error| format!("模型流式响应不是有效 UTF-8: {error}"))?;
     if !raw_event.trim().is_empty() {
-        handle_stream_event(&raw_event, full_content, on_delta)?;
+        handle_stream_event(&raw_event, full_content, on_delta, on_reasoning)?;
     }
     Ok(())
 }
@@ -201,13 +208,15 @@ fn find_event_separator(buffer: &[u8]) -> Option<(usize, usize)> {
     lf.or(crlf)
 }
 
-fn handle_stream_event<F>(
+fn handle_stream_event<F, G>(
     raw_event: &str,
     full_content: &mut String,
     on_delta: &mut F,
+    on_reasoning: &mut G,
 ) -> Result<(), String>
 where
     F: FnMut(&str) -> Result<(), String>,
+    G: FnMut(&str) -> Result<(), String>,
 {
     for line in raw_event.lines() {
         if let Some(data) = line.strip_prefix("data: ") {
@@ -221,8 +230,8 @@ where
                         on_delta(delta)?;
                     }
                     if let Some(ref reasoning) = choice.delta.reasoning_content {
-                        full_content.push_str(reasoning);
-                        on_delta(reasoning)?;
+                        // Don't add reasoning to full_content — keep it separate
+                        on_reasoning(reasoning)?;
                     }
                 }
             }
@@ -236,6 +245,7 @@ fn build_messages(
     project_context: &[ChatMessage],
     injected_memories: &[Memory],
     user_content: &str,
+    system_prompt_extra: &str,
 ) -> Vec<OpenAiMessage> {
     let memory_block = if injected_memories.is_empty() {
         "暂无长期记忆。".to_string()
@@ -262,11 +272,16 @@ fn build_messages(
             .collect::<Vec<_>>()
             .join("\n")
     };
+    let extra = if system_prompt_extra.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n用户自定义指令：\n{}", system_prompt_extra)
+    };
     let mut messages = vec![OpenAiMessage {
         role: "system".to_string(),
         content: format!(
-            "你是 Mira，一个本地个人 AI 记忆客户端。请自然使用长期记忆和项目上下文，但不要逐条暴露。\n\n长期记忆：\n{}\n\n同项目其他对话上下文：\n{}",
-            memory_block, project_block
+            "你是 Mira，一个本地个人 AI 记忆客户端。请自然使用长期记忆和项目上下文，但不要逐条暴露。\n\n长期记忆：\n{}\n\n同项目其他对话上下文：\n{}{}",
+            memory_block, project_block, extra
         ),
     }];
 

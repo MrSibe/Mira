@@ -1,28 +1,66 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
-  --bg: #f7f7f8;
-  --text: #171717;
-  --muted: #6f6f6f;
-  --subtle: #8a8a8a;
-  --border: #e5e5e5;
-  --border-strong: #d9d9d9;
-  --panel: #ffffff;
-  --panel-soft: #fafafa;
-  --sidebar: #ffffff;
-  --hover: #f4f4f4;
-  --active: #ececec;
-  --message-user: #f4f4f4;
-  --primary: #171717;
+  --gray-100: #f2f2f2;
+  --gray-200: #ebebeb;
+  --gray-300: #e6e6e6;
+  --gray-400: #eaeaea;
+  --gray-500: #c9c9c9;
+  --gray-600: #a8a8a8;
+  --gray-700: #8f8f8f;
+  --gray-800: #7d7d7d;
+  --gray-900: #4d4d4d;
+  --gray-1000: #171717;
+  --bg-100: #ffffff;
+  --bg-200: #fafafa;
+  --red-800: #ea001d;
+  --red-900: #d8001b;
+  --blue-700: #006bff;
+
+  --panel: var(--bg-100);
+  --panel-soft: var(--bg-200);
+  --sidebar: var(--bg-100);
+  --bg: var(--bg-200);
+  --text: var(--gray-1000);
+  --muted: var(--gray-900);
+  --subtle: var(--gray-800);
+  --border: var(--gray-400);
+  --border-strong: var(--gray-500);
+  --hover: var(--gray-300);
+  --active: var(--gray-400);
+  --message-user: var(--gray-200);
+  --primary: var(--gray-1000);
   --primary-hover: #2f2f2f;
-  --primary-text: #ffffff;
-  --danger: #b3261e;
-  --danger-hover: #982019;
-  --code-inline: #f3f3f3;
+  --primary-text: var(--bg-100);
+  --danger: var(--red-800);
+  --danger-hover: var(--red-900);
+  --code-inline: var(--gray-200);
   --code-block: #0f1115;
-  --shadow-soft: 0 8px 30px rgb(0 0 0 / 0.08);
+  --shadow-raised: 0 2px 2px rgba(0, 0, 0, 0.04);
+  --shadow-popover:
+    0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04),
+    0 16px 24px -8px rgba(0, 0, 0, 0.06);
+  --shadow-modal:
+    0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04),
+    0 24px 32px -8px rgba(0, 0, 0, 0.06);
+
   font-family:
-    "Noto Sans SC", "Microsoft YaHei UI", ui-sans-serif, system-ui, sans-serif;
+    "Geist Sans", "Noto Sans SC", "Microsoft YaHei UI", ui-sans-serif,
+    system-ui, sans-serif;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -31,27 +69,59 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-:root[data-theme="dark"] {
-  --bg: #171717;
-  --text: #f4f4f4;
-  --muted: #c0c0c0;
-  --subtle: #9b9b9b;
-  --border: #3a3a3a;
-  --border-strong: #505050;
-  --panel: #212121;
-  --panel-soft: #2a2a2a;
-  --sidebar: #212121;
-  --hover: #2f2f2f;
-  --active: #353535;
-  --message-user: #2f2f2f;
-  --primary: #f4f4f4;
+[data-theme="dark"] {
+  --gray-100: #1a1a1a;
+  --gray-200: #1f1f1f;
+  --gray-300: #292929;
+  --gray-400: #2e2e2e;
+  --gray-500: #454545;
+  --gray-600: #878787;
+  --gray-700: #8f8f8f;
+  --gray-800: #7d7d7d;
+  --gray-900: #a0a0a0;
+  --gray-1000: #ededed;
+  --bg-100: #000000;
+  --bg-200: #000000;
+  --red-800: #e2162a;
+  --red-900: #d8001b;
+  --blue-700: #006efe;
+  --blue-900: #47a8ff;
+
+  --panel: var(--bg-100);
+  --panel-soft: var(--bg-200);
+  --sidebar: var(--bg-100);
+  --bg: var(--bg-200);
+  --text: var(--gray-1000);
+  --muted: var(--gray-900);
+  --subtle: var(--gray-800);
+  --border: var(--gray-400);
+  --border-strong: var(--gray-500);
+  --hover: var(--gray-300);
+  --active: var(--gray-400);
+  --message-user: var(--gray-200);
+  --primary: var(--gray-1000);
   --primary-hover: #dddddd;
-  --primary-text: #171717;
-  --danger: #d94840;
-  --danger-hover: #c33831;
-  --code-inline: #303030;
+  --primary-text: var(--bg-100);
+  --danger: var(--red-800);
+  --danger-hover: var(--red-900);
+  --code-inline: var(--gray-200);
   --code-block: #0f1115;
-  --shadow-soft: 0 8px 30px rgb(0 0 0 / 0.28);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.16);
+  --shadow-popover:
+    0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04),
+    0 16px 24px -8px rgba(0, 0, 0, 0.06);
+  --shadow-modal:
+    0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04),
+    0 24px 32px -8px rgba(0, 0, 0, 0.06);
+}
+
+@theme {
+  --font-sans:
+    "Geist Sans", "Noto Sans SC", "Microsoft YaHei UI", ui-sans-serif,
+    system-ui, sans-serif;
+  --font-mono:
+    "Geist Mono", "JetBrains Mono", "SFMono-Regular", Consolas,
+    "Liberation Mono", monospace;
 }
 
 * {
@@ -80,12 +150,13 @@ select {
 
 pre {
   overflow-x: auto;
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 code {
   font-family:
-    "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    "Geist Mono", "JetBrains Mono", "SFMono-Regular", Consolas,
+    "Liberation Mono", monospace;
 }
 
 .hljs-keyword,

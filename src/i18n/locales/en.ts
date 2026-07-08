@@ -5,6 +5,7 @@ export const en = {
     create: "Create",
     close: "Close",
     closeDialog: "Close dialog",
+    copy: "Copy",
     save: "Save",
   },
   window: {
@@ -20,6 +21,7 @@ export const en = {
   chat: {
     emptyHeading: "What would you like to talk about today?",
     thinking: "Mira is thinking",
+    thought: "Thought",
   },
   composer: {
     placeholder: "Ask anything",
@@ -85,6 +87,10 @@ export const en = {
       languageDescription: "Choose the interface language.",
       langEnglish: "English",
       langChinese: "中文",
+      systemPrompt: "System Prompt",
+      systemPromptDesc:
+        "Custom instructions for the AI. These will be added to the system message.",
+      systemPromptPlaceholder: "e.g. Always answer in English. Be concise.",
     },
     providers: {
       asideLabel: "Providers",
@@ -143,7 +149,7 @@ export const en = {
       add: "Add memory",
       typeSaved: "saved memory",
       typeAuto: "auto memory",
-      typeProject: "project",
+      typeProject: "project memory",
       addDialogOpen: "Add saved memory",
       addDialogDesc: "Manually record a fact you want Mira to remember.",
       addDialogPlaceholder: "e.g. I prefer concise answers",

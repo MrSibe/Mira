@@ -128,6 +128,12 @@ export function SettingsPage() {
   const [updateError, setUpdateError] = useState("");
   const [showProviderKey, setShowProviderKey] = useState(false);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [systemPromptSaved, setSystemPromptSaved] = useState(false);
+
+  useEffect(() => {
+    tauriClient.getSystemPrompt().then((p) => setSystemPrompt(p));
+  }, []);
 
   useEffect(() => {
     void getVersion().then(setAppVersion);
@@ -144,9 +150,8 @@ export function SettingsPage() {
       } else {
         setUpdateState("idle");
       }
-    } catch (error) {
-      setUpdateError(String(error));
-      setUpdateState("error");
+    } catch {
+      setUpdateState("idle");
     }
   }
 
@@ -169,6 +174,12 @@ export function SettingsPage() {
 
   function closeForRestart() {
     void getCurrentWindow().close();
+  }
+
+  async function saveSystemPrompt() {
+    await tauriClient.saveSystemPrompt(systemPrompt);
+    setSystemPromptSaved(true);
+    window.setTimeout(() => setSystemPromptSaved(false), 2000);
   }
 
   useEffect(() => {
@@ -331,7 +342,7 @@ export function SettingsPage() {
             <button
               aria-label={t("settings.backToChat")}
               title={t("settings.backToChat")}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"
               onClick={() => setPage("chat")}
             >
               <ArrowLeft className="h-4 w-4" />
@@ -381,7 +392,17 @@ export function SettingsPage() {
 
         <section className="min-h-0 overflow-y-auto">
           {section === "appearance"
-            ? renderAppearance(themeMode, setThemeMode, locale, setLocale, t)
+            ? renderAppearance(
+                themeMode,
+                setThemeMode,
+                locale,
+                setLocale,
+                t,
+                systemPrompt,
+                setSystemPrompt,
+                systemPromptSaved,
+                saveSystemPrompt,
+              )
             : null}
           {section === "providers"
             ? renderProviders({
@@ -508,7 +529,7 @@ function SettingsNavButton({
   return (
     <button
       className={cn(
-        "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm transition",
+        "flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition",
         active
           ? "bg-[var(--active)] text-[var(--text)]"
           : "text-[var(--text)] hover:bg-[var(--hover)]",
@@ -532,6 +553,10 @@ function renderAppearance(
   locale: Locale,
   setLocale: (locale: Locale) => void,
   t: ReturnType<typeof useT>,
+  systemPrompt: string,
+  setSystemPrompt: (v: string) => void,
+  systemPromptSaved: boolean,
+  saveSystemPrompt: () => Promise<void>,
 ) {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-8 py-8">
@@ -543,7 +568,7 @@ function renderAppearance(
           {t("settings.appearance.description")}
         </p>
       </header>
-      <div className="inline-flex w-fit rounded-lg border border-[var(--border-strong)] bg-[var(--panel-soft)] p-1">
+      <div className="inline-flex w-fit rounded-md border border-[var(--border-strong)] bg-[var(--panel-soft)] p-1">
         {themeOptionKeys.map((option) => {
           const Icon = option.icon;
           return (
@@ -574,7 +599,7 @@ function renderAppearance(
         <p className="mb-4 text-sm text-[var(--subtle)]">
           {t("settings.appearance.languageDescription")}
         </p>
-        <div className="inline-flex w-fit rounded-lg border border-[var(--border-strong)] bg-[var(--panel-soft)] p-1">
+        <div className="inline-flex w-fit rounded-md border border-[var(--border-strong)] bg-[var(--panel-soft)] p-1">
           {localeOptionKeys.map((option) => (
             <button
               key={option.value}
@@ -589,6 +614,33 @@ function renderAppearance(
               {t(option.labelKey)}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="mt-10 max-w-3xl">
+        <h3 className="mb-3 text-sm font-semibold text-[var(--text)]">
+          {t("settings.appearance.systemPrompt")}
+        </h3>
+        <p className="mb-4 text-sm text-[var(--subtle)]">
+          {t("settings.appearance.systemPromptDesc")}
+        </p>
+        <Textarea
+          className="min-h-[100px]"
+          placeholder={t("settings.appearance.systemPromptPlaceholder")}
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.currentTarget.value)}
+        />
+        <div className="mt-3 flex items-center gap-2">
+          <Button onClick={() => void saveSystemPrompt()}>
+            <Save className="h-4 w-4" />
+            {t("common.save")}
+          </Button>
+          {systemPromptSaved ? (
+            <span className="flex items-center gap-1 text-xs text-[var(--primary)]">
+              <Check className="h-3.5 w-3.5" />
+              {t("settings.providers.savedHint")}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>
@@ -663,7 +715,7 @@ function renderProviders({
               <button
                 key={config.id}
                 className={cn(
-                  "w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-[var(--hover)]",
+                  "w-full rounded-md px-3 py-2 text-left text-sm transition hover:bg-[var(--hover)]",
                   draftId === config.id
                     ? "bg-[var(--active)] text-[var(--text)]"
                     : "text-[var(--text)]",
@@ -905,7 +957,7 @@ function renderModels({
           </select>
         </label>
 
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] p-4">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-soft)] p-4">
           <label className="flex items-start gap-3 text-sm">
             <input
               type="checkbox"
@@ -1019,7 +1071,7 @@ function renderMemories({
       </header>
 
       {memories.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[var(--border-strong)] px-4 py-10 text-center text-sm text-[var(--subtle)]">
+        <div className="rounded-xl border border-dashed border-[var(--border-strong)] px-4 py-10 text-center text-sm text-[var(--subtle)]">
           {t("settings.memories.empty")}
         </div>
       ) : (
@@ -1027,7 +1079,7 @@ function renderMemories({
           {memories.map((memory) => (
             <article
               key={memory.id}
-              className="rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] p-3"
+              className="rounded-xl border border-[var(--border)] bg-[var(--panel-soft)] p-3"
             >
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
@@ -1112,7 +1164,7 @@ function renderMemories({
       {isAddMemoryOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <form
-            className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-soft)]"
+            className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-modal)]"
             onSubmit={(event) => void submitSavedMemory(event)}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -1205,7 +1257,7 @@ function renderArchive({
       </label>
 
       {conversations.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[var(--border-strong)] px-4 py-10 text-center text-sm text-[var(--subtle)]">
+        <div className="rounded-xl border border-dashed border-[var(--border-strong)] px-4 py-10 text-center text-sm text-[var(--subtle)]">
           {t("settings.archive.empty")}
         </div>
       ) : (
@@ -1213,7 +1265,7 @@ function renderArchive({
           {conversations.map((conversation) => (
             <article
               key={conversation.id}
-              className="group rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] p-3"
+              className="group rounded-xl border border-[var(--border)] bg-[var(--panel-soft)] p-3"
             >
               <div className="flex items-center gap-3">
                 <Archive className="h-4 w-4 shrink-0 text-[var(--subtle)]" />
@@ -1306,7 +1358,7 @@ function AboutSection({
       </header>
 
       <div className="max-w-md space-y-4">
-        <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3">
+        <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3">
           <span className="text-sm text-[var(--text)]">
             {t("settings.about.version")}
           </span>
@@ -1315,7 +1367,7 @@ function AboutSection({
           </span>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3">
+        <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3">
           <span className="text-sm text-[var(--text)]">
             {t("settings.about.license")}
           </span>
@@ -1325,7 +1377,7 @@ function AboutSection({
         </div>
 
         <button
-          className="flex w-full items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3 text-left text-sm transition hover:bg-[var(--hover)]"
+          className="flex w-full items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-soft)] px-4 py-3 text-left text-sm transition hover:bg-[var(--hover)]"
           onClick={() => void openUrl(GITHUB_URL)}
         >
           <span className="text-[var(--text)]">
@@ -1357,7 +1409,7 @@ function AboutSection({
 
       {showDialog ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-soft)]">
+          <div className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-modal)]">
             <h2 className="text-sm font-semibold text-[var(--text)]">
               {updateState === "available"
                 ? t("settings.about.dialogTitle")

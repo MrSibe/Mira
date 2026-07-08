@@ -47,7 +47,7 @@ export function ChatPage() {
                         <button
                           key={conversation.id}
                           className={cn(
-                            "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
+                            "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition",
                             "text-[var(--text)] hover:bg-[var(--hover)]",
                           )}
                           onClick={() =>

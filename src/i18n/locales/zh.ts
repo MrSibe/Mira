@@ -7,6 +7,7 @@ export const zh: typeof en = {
     create: "创建",
     close: "关闭",
     closeDialog: "关闭确认框",
+    copy: "复制",
     save: "保存",
   },
   window: {
@@ -22,6 +23,7 @@ export const zh: typeof en = {
   chat: {
     emptyHeading: "今天想聊什么？",
     thinking: "Mira 正在思考",
+    thought: "思考过程",
   },
   composer: {
     placeholder: "询问任何问题",
@@ -84,6 +86,9 @@ export const zh: typeof en = {
       languageDescription: "选择界面语言。",
       langEnglish: "English",
       langChinese: "中文",
+      systemPrompt: "系统提示词",
+      systemPromptDesc: "自定义 AI 指令，将添加到系统消息中。",
+      systemPromptPlaceholder: "例如 请用中文回答。保持简洁。",
     },
     providers: {
       asideLabel: "供应商",
@@ -133,11 +138,11 @@ export const zh: typeof en = {
     },
     memories: {
       title: "记忆",
-      description: "saved 可手动编辑，自动记忆只支持删除。",
+      description: "手动记忆可编辑，自动记忆只支持删除。",
       add: "添加记忆",
-      typeSaved: "saved",
+      typeSaved: "手动记忆",
       typeAuto: "自动记忆",
-      typeProject: "project",
+      typeProject: "项目记忆",
       addDialogOpen: "新增 saved 记忆",
       addDialogDesc: "手动记录一条你希望 Mira 记住的事实。",
       addDialogPlaceholder: "例如 我偏好简洁的回答",

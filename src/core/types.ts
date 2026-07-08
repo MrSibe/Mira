@@ -29,6 +29,7 @@ export interface ChatMessage {
   role: Role;
   content: string;
   created_at: string;
+  reasoning?: string;
 }
 
 export interface ModelConfig {
@@ -76,6 +77,7 @@ export interface MessageStreamDelta {
   request_id: string;
   conversation_id: string;
   content: string;
+  reasoning?: string;
 }
 
 export interface MemoryPatch {

@@ -187,7 +187,7 @@ pub async fn send_message(
         } else {
             Vec::new()
         };
-        let user_message = database::insert_message(&conn, &conversation.id, "user", &trimmed)?;
+        let user_message = database::insert_message(&conn, &conversation.id, "user", &trimmed, None)?;
         let model_settings = database::get_model_settings(&conn)?;
         let chat_model_config_id = model_config_id
             .as_deref()
@@ -210,12 +210,21 @@ pub async fn send_message(
 
     let stream_conversation_id = conversation.id.clone();
     let stream_request_id = request_id.clone();
+    let system_prompt_extra = {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Database lock is poisoned".to_string())?;
+        database::get_system_prompt(&conn)?
+    };
+    let mut assistant_reasoning = String::new();
     let assistant_content = model::complete_chat_streaming(
         &model_config,
         &history,
         &project_context,
         &injected_memories,
         &trimmed,
+        &system_prompt_extra,
         |delta| {
             window
                 .emit(
@@ -224,9 +233,24 @@ pub async fn send_message(
                         request_id: stream_request_id.clone(),
                         conversation_id: stream_conversation_id.clone(),
                         content: delta.to_string(),
+                        reasoning: None,
                     },
                 )
                 .map_err(|error| format!("无法发送流式消息事件: {error}"))
+        },
+        |reasoning| {
+            assistant_reasoning.push_str(reasoning);
+            window
+                .emit(
+                    "message_stream_delta",
+                    MessageStreamDelta {
+                        request_id: stream_request_id.clone(),
+                        conversation_id: stream_conversation_id.clone(),
+                        content: String::new(),
+                        reasoning: Some(reasoning.to_string()),
+                    },
+                )
+                .map_err(|error| format!("无法发送推理消息事件: {error}"))
         },
     )
     .await?;
@@ -237,7 +261,7 @@ pub async fn send_message(
             .lock()
             .map_err(|_| "Database lock is poisoned".to_string())?;
         let assistant_message =
-            database::insert_message(&conn, &conversation.id, "assistant", &assistant_content)?;
+            database::insert_message(&conn, &conversation.id, "assistant", &assistant_content, Some(&assistant_reasoning))?;
         let updated_title = if conversation.title == "新对话" {
             Some(title_from_content(&trimmed))
         } else {
@@ -331,6 +355,40 @@ pub fn delete_model_config(
         .lock()
         .map_err(|_| "Database lock is poisoned".to_string())?;
     database::delete_model_config(&conn, &id)
+}
+
+#[tauri::command]
+pub fn rename_conversation(
+    state: State<'_, DbState>,
+    conversation_id: String,
+    title: String,
+) -> Result<Conversation, String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::rename_conversation(&conn, &conversation_id, &title)
+}
+
+#[tauri::command]
+pub fn get_system_prompt(state: State<'_, DbState>) -> Result<String, String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::get_system_prompt(&conn)
+}
+
+#[tauri::command]
+pub fn save_system_prompt(
+    state: State<'_, DbState>,
+    prompt: String,
+) -> Result<(), String> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|_| "Database lock is poisoned".to_string())?;
+    database::save_system_prompt(&conn, &prompt)
 }
 
 #[tauri::command]

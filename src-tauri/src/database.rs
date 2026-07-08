@@ -14,7 +14,7 @@ pub struct DbState {
     pub conn: Mutex<Connection>,
 }
 
-const SCHEMA_VERSION: &str = "3";
+const SCHEMA_VERSION: &str = "4";
 const FTS_SCHEMA_VERSION: &str = "2";
 
 pub fn now() -> String {
@@ -154,6 +154,7 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|error| format!("Cannot migrate SQLite schema: {error}"))?;
     ensure_column(conn, "projects", "summary", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_column(conn, "messages", "reasoning", "TEXT")?;
     ensure_fts_schema(conn)?;
     conn.execute(
         "INSERT INTO schema_meta(key, value, updated_at)
@@ -510,10 +511,10 @@ pub fn project_context_messages(
     limit: i64,
 ) -> Result<Vec<ChatMessage>, String> {
     if let Some(fts_query) = fts_query(query) {
-        let mut statement = conn
-            .prepare(
-                "SELECT m.id, m.conversation_id, m.role, m.content, m.created_at
-                 FROM messages_fts f
+    let mut statement = conn
+        .prepare(
+            "SELECT m.id, m.conversation_id, m.role, m.content, m.created_at, m.reasoning
+             FROM messages_fts f
                  JOIN messages m ON m.rowid = f.rowid
                  JOIN conversations c ON c.id = m.conversation_id
                  WHERE messages_fts MATCH ?1
@@ -544,7 +545,7 @@ pub fn project_context_messages(
 
     let mut statement = conn
         .prepare(
-            "SELECT m.id, m.conversation_id, m.role, m.content, m.created_at
+            "SELECT m.id, m.conversation_id, m.role, m.content, m.created_at, m.reasoning
              FROM messages m
              JOIN conversations c ON c.id = m.conversation_id
              WHERE c.project_id = ?1
@@ -591,11 +592,30 @@ pub fn touch_conversation(conn: &Connection, id: &str, title: Option<&str>) -> R
     Ok(())
 }
 
+pub fn rename_conversation(conn: &Connection, id: &str, title: &str) -> Result<Conversation, String> {
+    let trimmed = title.trim();
+    if trimmed.is_empty() {
+        return Err("Conversation title cannot be empty".to_string());
+    }
+    conn.execute(
+        "UPDATE conversations SET title = ?1, updated_at = ?2 WHERE id = ?3",
+        params![trimmed, now(), id],
+    )
+    .map_err(|error| format!("Cannot rename conversation: {error}"))?;
+    conn.query_row(
+        "SELECT id, title, project_id, is_archived, created_at, updated_at FROM conversations WHERE id = ?1",
+        params![id],
+        conversation_from_row,
+    )
+    .map_err(|error| format!("Cannot fetch renamed conversation: {error}"))
+}
+
 pub fn insert_message(
     conn: &Connection,
     conversation_id: &str,
     role: &str,
     content: &str,
+    reasoning: Option<&str>,
 ) -> Result<ChatMessage, String> {
     let message = ChatMessage {
         id: new_id(),
@@ -603,15 +623,17 @@ pub fn insert_message(
         role: role.to_string(),
         content: content.to_string(),
         created_at: now(),
+        reasoning: reasoning.map(|s| s.to_string()),
     };
     conn.execute(
-        "INSERT INTO messages(id, conversation_id, role, content, created_at) VALUES(?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO messages(id, conversation_id, role, content, created_at, reasoning) VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             message.id,
             message.conversation_id,
             message.role,
             message.content,
-            message.created_at
+            message.created_at,
+            message.reasoning,
         ],
     )
     .map_err(|error| format!("Cannot insert message: {error}"))?;
@@ -621,7 +643,7 @@ pub fn insert_message(
 pub fn list_messages(conn: &Connection, conversation_id: &str) -> Result<Vec<ChatMessage>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT id, conversation_id, role, content, created_at
+            "SELECT id, conversation_id, role, content, created_at, reasoning
              FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC",
         )
         .map_err(|error| format!("Cannot prepare messages query: {error}"))?;
@@ -720,6 +742,19 @@ pub fn save_model_settings(
         }),
     )?;
     get_model_settings(conn)
+}
+
+pub fn get_system_prompt(conn: &Connection) -> Result<String, String> {
+    Ok(get_app_setting(conn, "system_prompt")?.unwrap_or_default())
+}
+
+pub fn save_system_prompt(conn: &Connection, prompt: &str) -> Result<(), String> {
+    let trimmed = prompt.trim();
+    if trimmed.is_empty() {
+        set_app_setting(conn, "system_prompt", None)
+    } else {
+        set_app_setting(conn, "system_prompt", Some(trimmed))
+    }
 }
 
 fn get_app_setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {
@@ -1045,6 +1080,7 @@ fn message_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ChatMessage> {
         role: row.get(2)?,
         content: row.get(3)?,
         created_at: row.get(4)?,
+        reasoning: row.get(5)?,
     })
 }
 

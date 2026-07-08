@@ -11,6 +11,7 @@ mod types;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let conn = database::init_database(app.handle())
@@ -34,6 +35,9 @@ pub fn run() {
             chat::create_project,
             chat::delete_project,
             chat::rename_project,
+            chat::rename_conversation,
+            chat::get_system_prompt,
+            chat::save_system_prompt,
             chat::list_model_configs,
             chat::save_model_config,
             chat::delete_model_config,

@@ -244,7 +244,7 @@ export function ConversationList() {
                     </button>
                     {openProjectMenuId === project.id ? (
                       <div
-                        className="absolute right-2 top-8 z-10 w-36 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-1 shadow-[var(--shadow-soft)]"
+                        className="absolute right-2 top-8 z-10 w-36 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-1 shadow-[var(--shadow-popover)]"
                         onMouseLeave={() => setOpenProjectMenuId(null)}
                       >
                         <button
@@ -380,7 +380,7 @@ export function ConversationList() {
         {isProjectDialogOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
             <form
-              className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-soft)]"
+              className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-modal)]"
               onSubmit={(event) => void submitProject(event)}
             >
               <div className="mb-4 flex items-center justify-between gap-3">
@@ -434,7 +434,7 @@ export function ConversationList() {
         {renameTarget ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
             <form
-              className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-soft)]"
+              className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 shadow-[var(--shadow-modal)]"
               onSubmit={(event) => void submitRenameProject(event)}
             >
               <div className="mb-4 flex items-center justify-between gap-3">
@@ -541,6 +541,8 @@ function ConversationRow({
   onMove: (projectId: string | null) => void;
 }) {
   const t = useT();
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
   const [projectMenu, setProjectMenu] = useState<{
     x: number;
     y: number;
@@ -590,7 +592,44 @@ function ConversationRow({
         <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
           <span className="min-w-0 truncate text-[13px] leading-5">
-            {conversation.title}
+            {renaming ? (
+              <input
+                autoFocus
+                className="w-full rounded border border-[var(--border-strong)] bg-[var(--panel)] px-1 py-0 text-xs outline-none"
+                value={renameValue}
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setRenameValue(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    const trimmed = renameValue.trim();
+                    if (trimmed && trimmed !== conversation.title) {
+                      useAppStore
+                        .getState()
+                        .renameConversation(conversation.id, trimmed);
+                    }
+                    setRenaming(false);
+                  }
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setRenaming(false);
+                  }
+                }}
+                onBlur={() => setRenaming(false)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className="cursor-pointer"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setRenameValue(conversation.title);
+                  setRenaming(true);
+                }}
+              >
+                {conversation.title}
+              </span>
+            )}
           </span>
         </div>
 
@@ -625,7 +664,7 @@ function ConversationRow({
 
       {projectMenu ? (
         <div
-          className="fixed z-50 max-h-[min(320px,calc(100vh-16px))] w-60 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--panel)] p-1.5 shadow-[var(--shadow-soft)]"
+          className="fixed z-50 max-h-[min(320px,calc(100vh-16px))] w-60 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--panel)] p-1.5 shadow-[var(--shadow-popover)]"
           role="menu"
           style={{ left: projectMenu.x, top: projectMenu.y }}
           onClick={(event) => event.stopPropagation()}
@@ -672,7 +711,7 @@ function ProjectMenuItem({
 }) {
   return (
     <button
-      className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] leading-5 text-[var(--text)] outline-none transition hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)]"
+      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 text-[var(--text)] outline-none transition hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)]"
       role="menuitem"
       onClick={onSelect}
     >

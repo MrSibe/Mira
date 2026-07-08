@@ -26,6 +26,8 @@ pub struct ChatMessage {
     pub role: String,
     pub content: String,
     pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,4 +90,6 @@ pub struct MessageStreamDelta {
     pub request_id: String,
     pub conversation_id: String,
     pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<String>,
 }

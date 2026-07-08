@@ -78,8 +78,8 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
                   <ChevronDown className="h-3 w-3" />
                   {isSending ? t("chat.thinking") : t("chat.thought")}
                 </summary>
-                <div className="border-t border-[var(--border)] px-3 py-2 text-xs leading-6 text-[var(--muted)] italic">
-                  {message.reasoning}
+                <div className="border-t border-[var(--border)] px-3 py-2 text-xs leading-6 text-[var(--muted)]">
+                  <MarkdownMessage content={message.reasoning} />
                 </div>
               </details>
             ) : null}
