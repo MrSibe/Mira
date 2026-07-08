@@ -12,9 +12,9 @@ export function Composer() {
   const [searchActive, setSearchActive] = useState(false);
   const isSending = useAppStore((state) => state.isSending);
   const sendMessage = useAppStore((state) => state.sendMessage);
+  const tavilyConfig = useAppStore((state) => state.tavilyConfig);
   const tavilyConfigured =
-    useAppStore((state) => state.tavilyConfig)?.credential_status ===
-      "stored" && useAppStore((state) => state.tavilyConfig)?.enabled;
+    tavilyConfig?.credential_status === "stored" && tavilyConfig.enabled;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
