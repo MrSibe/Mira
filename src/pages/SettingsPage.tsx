@@ -127,6 +127,7 @@ export function SettingsPage() {
   const [updateVersion, setUpdateVersion] = useState("");
   const [updateError, setUpdateError] = useState("");
   const [showProviderKey, setShowProviderKey] = useState(false);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
 
   useEffect(() => {
     void getVersion().then(setAppVersion);
@@ -185,6 +186,7 @@ export function SettingsPage() {
   useEffect(() => {
     setProviderError(null);
     setShowSavedHint(false);
+    setRevealedKey(null);
   }, [draftId]);
 
   useEffect(() => {
@@ -393,6 +395,8 @@ export function SettingsPage() {
                 showSavedHint,
                 showProviderKey,
                 setShowProviderKey,
+                revealedKey,
+                setRevealedKey,
                 providerError,
                 onSubmit: handleSaveProvider,
                 onAdd: startAddProvider,
@@ -602,6 +606,8 @@ function renderProviders({
   showSavedHint,
   showProviderKey,
   setShowProviderKey,
+  revealedKey,
+  setRevealedKey,
   providerError,
   onSubmit,
   onAdd,
@@ -618,6 +624,8 @@ function renderProviders({
   showSavedHint: boolean;
   showProviderKey: boolean;
   setShowProviderKey: React.Dispatch<React.SetStateAction<boolean>>;
+  revealedKey: string | null;
+  setRevealedKey: React.Dispatch<React.SetStateAction<string | null>>;
   providerError: string | null;
   onSubmit: (event: FormEvent) => Promise<void>;
   onAdd: () => void;
@@ -731,8 +739,8 @@ function renderProviders({
                   placeholder={t("settings.providers.apiKeyPlaceholderEmpty")}
                   value={
                     draft.credential_status === "stored" && !showProviderKey
-                      ? "******"
-                      : (draft.api_key ?? "")
+                      ? (draft.api_key ?? "******")
+                      : (revealedKey ?? draft.api_key ?? "")
                   }
                   onChange={(event) =>
                     updateDraft({ api_key: event.currentTarget.value || null })
@@ -750,7 +758,7 @@ function renderProviders({
                         const realKey = await tauriClient.getModelApiKey(
                           draft.id,
                         );
-                        if (realKey) updateDraft({ api_key: realKey });
+                        if (realKey) setRevealedKey(realKey);
                       } catch {
                         // fallback to masked
                       }

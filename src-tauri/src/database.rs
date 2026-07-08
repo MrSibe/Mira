@@ -759,7 +759,7 @@ pub fn save_model_config(conn: &Connection, config: ModelConfig) -> Result<Model
     }
     if let Some(api_key) = config.api_key.as_deref() {
         let trimmed = api_key.trim();
-        if trimmed == "******" {
+        if trimmed.chars().all(|c| c == '*') {
             // Keep the existing credential.
         } else if trimmed.is_empty() {
             secrets::delete_model_api_key(&config.id)?;
@@ -1067,7 +1067,7 @@ fn model_config_from_row(
         api_key: if expose_keys {
             stored_key
         } else {
-            stored_key.map(|_| "******".to_string())
+            stored_key.map(|key| "*".repeat(key.len()))
         },
         credential_status,
         credential_error,
